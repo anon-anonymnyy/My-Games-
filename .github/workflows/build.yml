@@ -1,0 +1,35 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  export-android:
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Export debug APK
+        shell: bash
+        run: |
+          export HOME=/root
+          mkdir -p build
+          if [ ! -f /root/debug.keystore ]; then keytool -keyalg RSA -genkeypair -alias androiddebugkey -keypass android -keystore /root/debug.keystore -storepass android -dname "CN=Android Debug,O=Android,C=US" -validity 9999 -deststoretype pkcs12; fi
+          godot --headless --import || true
+          godot --headless --verbose --export-debug "Android Debug" build/game.apk
+          ls -la build
+
+      - name: Publish release with APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Сборка ${{ github.run_number }}
+          files: build/game.apk
