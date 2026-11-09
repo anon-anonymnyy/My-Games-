@@ -41,6 +41,8 @@ var punch_t := 0.0
 var punch_n := 0
 var trick_t := 0.0
 var cur_anim := ""
+var prev_pos := Vector3.ZERO
+var cur_pos := Vector3.ZERO
 
 var stick_id := -1
 var stick_origin := Vector2.ZERO
@@ -119,7 +121,9 @@ func _build_env() -> void:
 	sun.rotation_degrees = Vector3(-50, -35, 0)
 	sun.light_energy = 1.1
 	sun.shadow_enabled = true
-	sun.directional_shadow_max_distance = 40.0
+	sun.directional_shadow_max_distance = 30.0
+	sun.shadow_bias = 0.06
+	sun.shadow_normal_bias = 1.5
 	add_child(sun)
 
 func _mat(c: Color, rough := 0.9) -> StandardMaterial3D:
@@ -277,7 +281,10 @@ func _build_player() -> void:
 	player.add_child(cs)
 	add_child(player)
 	visual = Node3D.new()
+	visual.top_level = true
 	player.add_child(visual)
+	prev_pos = player.position
+	cur_pos = player.position
 	var bscene: PackedScene = load("res://skateboard.glb")
 	if bscene != null:
 		board = bscene.instantiate()
@@ -359,6 +366,10 @@ func _text_c(t: String, center: Vector2, size: int, c := Color.WHITE) -> void:
 	var w := font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
 	hud.draw_string(font, center + Vector2(-w * 0.5, size * 0.35), t, HORIZONTAL_ALIGNMENT_LEFT, -1, size, c)
 
+func _btn_draw(p: Vector2, r: float, c: Color) -> void:
+	hud.draw_circle(p, r, c)
+	hud.draw_arc(p, r, 0, TAU, 32, Color(1, 1, 1, 0.8), 3.0)
+
 func _hud_draw() -> void:
 	var s := _vs()
 	if state == "select":
@@ -384,11 +395,11 @@ func _hud_draw() -> void:
 		hud.draw_circle(stick_origin, STICK_R, Color(1, 1, 1, 0.15))
 		hud.draw_circle(stick_origin + stick_vec * STICK_R, 40, Color(1, 1, 1, 0.45))
 	# кнопки
-	hud.draw_circle(_btn_jump(), 62, Color(1, 1, 1, 0.3))
+	_btn_draw(_btn_jump(), 62, Color(0.15, 0.2, 0.35, 0.55))
 	_text_c("Прыжок" if not (skating and not player.is_on_floor()) else "Трюк", _btn_jump(), 22)
-	hud.draw_circle(_btn_board(), 52, Color(1, 0.8, 0.2, 0.4) if skating else Color(1, 1, 1, 0.3))
+	_btn_draw(_btn_board(), 52, Color(0.9, 0.65, 0.1, 0.7) if skating else Color(0.15, 0.2, 0.35, 0.55))
 	_text_c("Скейт", _btn_board(), 22)
-	hud.draw_circle(_btn_hit(), 52, Color(1, 0.3, 0.3, 0.3))
+	_btn_draw(_btn_hit(), 52, Color(0.7, 0.15, 0.15, 0.6))
 	_text_c("Удар", _btn_hit(), 22)
 	# ежедневная награда
 	if popup:
@@ -521,6 +532,8 @@ func _physics_process(d: float) -> void:
 	player.velocity = vel
 	player.move_and_slide()
 	vel = player.velocity
+	prev_pos = cur_pos
+	cur_pos = player.global_position
 	if skating:
 		skate_speed = Vector2(vel.x, vel.z).length() if skate_speed > 0.0 else 0.0
 	if player.is_on_floor() and not was_on_floor:
@@ -529,6 +542,8 @@ func _physics_process(d: float) -> void:
 	if player.position.y < -20.0:
 		player.position = Vector3(0, 0.5, 6)
 		vel = Vector3.ZERO
+		prev_pos = player.position
+		cur_pos = player.position
 	# анимация
 	punch_t = maxf(0.0, punch_t - d)
 	land_t = maxf(0.0, land_t - d)
@@ -574,6 +589,8 @@ func _process(d: float) -> void:
 		else:
 			board.rotation.z = 0.0
 	cam_pivot.rotation = Vector3(pitch, yaw, 0)
-	var target := player.global_position + Vector3(0, 1.5, 0)
+	var ip: Vector3 = prev_pos.lerp(cur_pos, Engine.get_physics_interpolation_fraction())
+	visual.global_position = ip
+	var target: Vector3 = ip + Vector3(0, 1.5, 0)
 	cam_pivot.global_position = cam_pivot.global_position.lerp(target, minf(1.0, 12.0 * d))
 	hud.queue_redraw()
