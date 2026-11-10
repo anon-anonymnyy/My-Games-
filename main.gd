@@ -7,8 +7,8 @@ const SKATE_MAX := 12.0
 const GRAVITY := 24.0
 const JUMP_V := 8.0
 const STICK_R := 90.0
-const MODEL_SCALE := 0.89
-const SKATE_LIFT := 0.14
+const MODEL_SCALE := 1.05
+const SKATE_LIFT := 0.165
 const LOOPING := ["idle", "walk", "run", "fall", "skate_ride", "skate_push"]
 const SAVE_PATH := "user://save.json"
 const TRICKS := [
@@ -91,6 +91,8 @@ var fence_mats: Array = []
 var roof_mat: StandardMaterial3D
 var upgrade_nodes: Dictionary = {}
 var trick_pending := 0
+var vis_h := 0.0
+var vis_up := Vector3.UP
 var font: Font
 
 func _ready() -> void:
@@ -289,7 +291,8 @@ func _build_world() -> void:
 	for i in range(-4, 5):
 		if i == 0:
 			continue
-		_house(i * 22.0, -9.0, 10, 7, 4.2 + (i % 2) * 0.8, wc[absi(i) % 4], Color(0.35, 0.25, 0.25), 1.0)
+		if i != 3 and i != 4:
+			_house(i * 22.0, -9.0, 10, 7, 4.2 + (i % 2) * 0.8, wc[absi(i) % 4], Color(0.35, 0.25, 0.25), 1.0)
 		_house(i * 22.0 + 6, 36.0, 10, 7, 5.0, wc[(absi(i) + 1) % 4], Color(0.3, 0.3, 0.38), -1.0)
 	# скейт-элементы во дворе
 	_box(Vector3(6, 0.45, 3), Vector3(3, 0.3, 4), Color(0.7, 0.55, 0.35), true, Vector3(0.26, 0, 0))
@@ -336,7 +339,7 @@ func _teleport(p: Vector3) -> void:
 	cur_pos = p
 	heading = PI if p.x > 50.0 else 0.0
 	yaw = PI
-	cam_pivot.global_position = p + Vector3(0, 1.5, 0)
+	cam_pivot.global_position = p + Vector3(0, 1.7, 0)
 
 func _add_coin(pos: Vector3) -> void:
 	var pivot := Node3D.new()
@@ -455,14 +458,14 @@ func _build_skatepark() -> void:
 # ---------------- игрок ----------------
 func _build_player() -> void:
 	player = CharacterBody3D.new()
-	player.floor_max_angle = deg_to_rad(70.0)
+	player.floor_max_angle = deg_to_rad(50.0)
 	player.position = Vector3(0, 0.1, 6)
 	var cs := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
-	cap.radius = 0.3
-	cap.height = 1.7
+	cap.radius = 0.33
+	cap.height = 2.0
 	cs.shape = cap
-	cs.position = Vector3(0, 0.85, 0)
+	cs.position = Vector3(0, 1.0, 0)
 	player.add_child(cs)
 	add_child(player)
 	visual = Node3D.new()
@@ -473,16 +476,17 @@ func _build_player() -> void:
 	var bscene: PackedScene = load("res://skateboard.glb")
 	if bscene != null:
 		board = bscene.instantiate()
+		board.scale = Vector3.ONE * 1.18
 		board.visible = false
 		visual.add_child(board)
 	cam_pivot = Node3D.new()
 	add_child(cam_pivot)
 	cam = Camera3D.new()
-	cam.position = Vector3(0, 0, 4.5)
+	cam.position = Vector3(0, 0, 3.6)
 	cam.fov = 70
 	cam.current = true
 	cam_pivot.add_child(cam)
-	cam_pivot.global_position = player.global_position + Vector3(0, 1.5, 0)
+	cam_pivot.global_position = player.global_position + Vector3(0, 1.7, 0)
 	yaw = PI
 
 func _spawn_model(id: String) -> void:
@@ -887,9 +891,11 @@ func _toggle_skate() -> void:
 	brake_id = -1
 	_reset_trick()
 	player.floor_stop_on_slope = not skating
+	player.floor_max_angle = deg_to_rad(72.0 if skating else 50.0)
+	player.floor_snap_length = 0.6 if skating else 0.1
 	if board != null:
 		board.visible = skating
-	cam.position.z = 5.5 if skating else 4.5
+	cam.position.z = 4.4 if skating else 3.6
 	cur_anim = ""
 
 func _do_jump() -> void:
@@ -926,26 +932,47 @@ func _physics_process(d: float) -> void:
 		if mag > 0.1 and punch_t <= 0.0:
 			heading = lerp_angle(heading, atan2(dir.x, dir.z), minf(1.0, 14.0 * d))
 	else:
-		if mag > 0.15:
-			heading = lerp_angle(heading, atan2(dir.x, dir.z), minf(1.0, 3.0 * d))
-			skate_speed = move_toward(skate_speed, SKATE_MAX * mag, 6.0 * d)
+		if on_floor:
+			var n := player.get_floor_normal()
+			var hv := Vector3(vel.x, 0, vel.z)
+			if mag > 0.15:
+				heading = lerp_angle(heading, atan2(dir.x, dir.z), minf(1.0, 3.0 * d))
+			elif hv.length() > 1.5:
+				heading = lerp_angle(heading, atan2(hv.x, hv.z), minf(1.0, 4.0 * d))
+			var fwd := Vector3(sin(heading), 0, cos(heading))
+			var along := hv.dot(fwd)
+			var lat := hv - fwd * along
+			lat = lat.move_toward(Vector3.ZERO, 14.0 * d)
+			if mag > 0.15:
+				if along < SKATE_MAX * mag:
+					along = move_toward(along, SKATE_MAX * mag, 6.0 * d)
+			else:
+				along = move_toward(along, 0.0, 1.2 * d)
+			if brake_id != -1:
+				along = move_toward(along, 0.0, 18.0 * d)
+				lat = lat.move_toward(Vector3.ZERO, 18.0 * d)
+			hv = fwd * along + lat
+			vel.x = hv.x
+			vel.z = hv.z
+			if n.y > 0.99:
+				vel.y = -1.0
+			else:
+				var g := Vector3(0, -GRAVITY, 0)
+				vel += (g - n * g.dot(n)) * d
 		else:
-			skate_speed = move_toward(skate_speed, 0.0, 3.0 * d)
-		if brake_id != -1:
-			skate_speed = move_toward(skate_speed, 0.0, 18.0 * d)
-		vel.x = sin(heading) * skate_speed
-		vel.z = cos(heading) * skate_speed
-	if not on_floor:
-		vel.y -= GRAVITY * d
-	elif vel.y < 0.0:
-		vel.y = -1.0
+			vel.y -= GRAVITY * d
+	if not skating:
+		if not on_floor:
+			vel.y -= GRAVITY * d
+		elif vel.y < 0.0:
+			vel.y = -1.0
 	player.velocity = vel
 	player.move_and_slide()
 	vel = player.velocity
 	prev_pos = cur_pos
 	cur_pos = player.global_position
 	if skating:
-		skate_speed = Vector2(vel.x, vel.z).length() if skate_speed > 0.0 else 0.0
+		skate_speed = Vector2(vel.x, vel.z).length()
 	if skating and player.is_on_floor():
 		stats["dist"] = float(stats["dist"]) + Vector2(vel.x, vel.z).length() * d
 	if player.is_on_floor() and not was_on_floor:
@@ -1004,7 +1031,13 @@ func _process(d: float) -> void:
 		_check_quest()
 	if player == null or model == null:
 		return
-	visual.rotation.y = lerp_angle(visual.rotation.y, heading, minf(1.0, 18.0 * d))
+	vis_h = lerp_angle(vis_h, heading, minf(1.0, 18.0 * d))
+	var tgt_up := player.get_floor_normal() if (skating and player.is_on_floor()) else Vector3.UP
+	vis_up = vis_up.lerp(tgt_up, minf(1.0, 12.0 * d)).normalized()
+	var vf := Vector3(sin(vis_h), 0, cos(vis_h))
+	var vz := (vf - vis_up * vf.dot(vis_up)).normalized()
+	var vx := vis_up.cross(vz).normalized()
+	visual.basis = Basis(vx, vis_up, vz)
 	var lift := SKATE_LIFT if skating else 0.0
 	model.position.y = lerpf(model.position.y, MODEL_SCALE + lift, minf(1.0, 15.0 * d))
 	if board != null and skating:
@@ -1031,6 +1064,6 @@ func _process(d: float) -> void:
 	cam_pivot.rotation = Vector3(pitch, yaw, 0)
 	var ip: Vector3 = prev_pos.lerp(cur_pos, Engine.get_physics_interpolation_fraction())
 	visual.global_position = ip
-	var target: Vector3 = ip + Vector3(0, 1.5, 0)
+	var target: Vector3 = ip + Vector3(0, 1.7, 0)
 	cam_pivot.global_position = cam_pivot.global_position.lerp(target, minf(1.0, 12.0 * d))
 	hud.queue_redraw()
