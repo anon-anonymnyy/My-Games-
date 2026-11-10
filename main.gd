@@ -23,7 +23,9 @@ const QUESTS := [
 	{"t": "Собери 40 монет", "k": "coins_got", "n": 40, "r": 300, "u": ""},
 	{"t": "Сделай 15 трюков", "k": "tricks", "n": 15, "r": 400, "u": "heelflip"},
 	{"t": "Набери 3000 очков за трюки", "k": "score", "n": 3000, "r": 600, "u": "flip360"},
-	{"t": "Проедь 2000 м на скейте", "k": "dist", "n": 2000, "r": 800, "u": ""}]
+	{"t": "Проедь 2000 м на скейте", "k": "dist", "n": 2000, "r": 800, "u": ""},
+	{"t": "Заедь в скейт-парк (справа по улице)", "k": "park", "n": 1, "r": 200, "u": ""},
+	{"t": "Набери 8000 очков за трюки", "k": "score", "n": 8000, "r": 1000, "u": ""}]
 const UPGRADES := [
 	{"name": "Покрасить забор", "cost": 300, "inc": 30},
 	{"name": "Новая крыша", "cost": 600, "inc": 60},
@@ -77,7 +79,7 @@ var trick_sel := 0
 var trick_active := false
 var trick_dur := 0.6
 var trick_def: Dictionary = {}
-var stats: Dictionary = {"coins_got": 0, "dist": 0.0, "tricks": 0, "score": 0}
+var stats: Dictionary = {"coins_got": 0, "dist": 0.0, "tricks": 0, "score": 0, "park": 0}
 var quest_i := 0
 var owned: Array = []
 var last_collect := 0
@@ -98,6 +100,7 @@ func _ready() -> void:
 		last_collect = int(Time.get_unix_time_from_system())
 	_build_env()
 	_build_world()
+	_build_skatepark()
 	_build_player()
 	_build_hud()
 	_apply_upgrades()
@@ -321,9 +324,138 @@ func _build_world() -> void:
 		add_child(pivot)
 		coin_nodes.append(pivot)
 
+# ---------------- скейт-парк ----------------
+func _in_park() -> bool:
+	return player != null and player.global_position.x > 52.0 and player.global_position.x < 108.0 and player.global_position.z < 10.0
+
+func _teleport(p: Vector3) -> void:
+	player.global_position = p
+	vel = Vector3.ZERO
+	skate_speed = 0.0
+	prev_pos = p
+	cur_pos = p
+	heading = PI if p.x > 50.0 else 0.0
+	yaw = PI
+	cam_pivot.global_position = p + Vector3(0, 1.5, 0)
+
+func _add_coin(pos: Vector3) -> void:
+	var pivot := Node3D.new()
+	pivot.position = pos
+	var mi := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.28
+	cm.bottom_radius = 0.28
+	cm.height = 0.06
+	mi.mesh = cm
+	mi.rotation.x = PI / 2.0
+	var m := _mat(Color(1, 0.8, 0.1), 0.3)
+	m.emission_enabled = true
+	m.emission = Color(0.6, 0.45, 0.0)
+	mi.material_override = m
+	pivot.add_child(mi)
+	add_child(pivot)
+	coin_nodes.append(pivot)
+	coin_respawn.append(0.0)
+
+func _quarter(pos: Vector3, rot_y: float, width: float, r: float, c: Color) -> void:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var n := 10
+	for k in range(n):
+		var a0 := (PI / 2.0) * float(k) / float(n)
+		var a1 := (PI / 2.0) * float(k + 1) / float(n)
+		var z0 := -r * sin(a0)
+		var y0 := r * (1.0 - cos(a0))
+		var z1 := -r * sin(a1)
+		var y1 := r * (1.0 - cos(a1))
+		var n0 := Vector3(0, cos(a0), sin(a0))
+		var n1 := Vector3(0, cos(a1), sin(a1))
+		var hw := width * 0.5
+		var A0 := Vector3(-hw, y0, z0)
+		var B0 := Vector3(hw, y0, z0)
+		var A1 := Vector3(-hw, y1, z1)
+		var B1 := Vector3(hw, y1, z1)
+		for v in [[A0, n0], [A1, n1], [B0, n0], [B0, n0], [A1, n1], [B1, n1]]:
+			st.set_normal(v[1])
+			st.add_vertex(v[0])
+	var mesh := st.commit()
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	var m := _mat(c)
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mi.material_override = m
+	mi.position = pos
+	mi.rotation.y = rot_y
+	add_child(mi)
+	mi.create_trimesh_collision()
+	# боковые стенки и платформа сверху
+	var plat := _box(Vector3(0, r, -r - 0.5), Vector3(width, 0.2, 1.0), Color(0.55, 0.55, 0.6))
+	remove_child(plat)
+	mi.add_child(plat)
+	plat.position = Vector3(0, r - 0.1, -r - 0.5)
+
+func _kicker(x: float, z: float, w: float, ry: float, c: Color, y := 0.3) -> void:
+	_box(Vector3(x, y, z), Vector3(w, 0.3, 3.0), c, true, Vector3(0.26, ry, 0))
+
+func _build_skatepark() -> void:
+	var cx := 80.0
+	# площадка
+	_box(Vector3(cx, 0.03, -10), Vector3(52, 0.06, 42), Color(0.62, 0.62, 0.66))
+	# низкая стенка по периметру, въезд со стороны улицы
+	var wc := Color(0.5, 0.5, 0.55)
+	_box(Vector3(cx, 0.4, -31), Vector3(52, 0.8, 0.4), wc)
+	_box(Vector3(cx - 26, 0.4, -10), Vector3(0.4, 0.8, 42), wc)
+	_box(Vector3(cx + 26, 0.4, -10), Vector3(0.4, 0.8, 42), wc)
+	_box(Vector3(cx - 17.5, 0.4, 11), Vector3(17, 0.8, 0.4), wc)
+	_box(Vector3(cx + 17.5, 0.4, 11), Vector3(17, 0.8, 0.4), wc)
+	# вывеска
+	var lb := Label3D.new()
+	lb.text = "СКЕЙТ-ПАРК"
+	lb.font_size = 160
+	lb.pixel_size = 0.012
+	lb.position = Vector3(cx, 4.5, 11)
+	lb.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+	lb.modulate = Color(1, 0.85, 0.2)
+	lb.outline_modulate = Color(0.1, 0.1, 0.1)
+	add_child(lb)
+	_box(Vector3(cx - 4, 2.0, 11), Vector3(0.3, 4.0, 0.3), Color(0.3, 0.3, 0.35), false)
+	_box(Vector3(cx + 4, 2.0, 11), Vector3(0.3, 4.0, 0.3), Color(0.3, 0.3, 0.35), false)
+	# большие рампы-четвертьпайпы
+	_quarter(Vector3(cx, 0.06, -26), 0.0, 16.0, 2.2, Color(0.7, 0.45, 0.3))
+	_quarter(Vector3(cx - 22, 0.06, -10), PI / 2.0, 14.0, 2.2, Color(0.35, 0.5, 0.75))
+	_quarter(Vector3(cx + 22, 0.06, -10), -PI / 2.0, 14.0, 2.2, Color(0.35, 0.5, 0.75))
+	# фанбокс по центру
+	_box(Vector3(cx, 0.35, -10), Vector3(8, 0.7, 5), Color(0.85, 0.7, 0.3))
+	_kicker(cx, -6.05, 5.0, 0.0, Color(0.7, 0.55, 0.35), 0.17)
+	_kicker(cx, -13.95, 5.0, PI, Color(0.7, 0.55, 0.35), 0.17)
+	# лесенка с перилами
+	for i in range(4):
+		_box(Vector3(cx + 12, 0.15 + i * 0.3, -18 - i * 1.2), Vector3(4, 0.3 + i * 0.3, 1.2), Color(0.55, 0.55, 0.6))
+	_box(Vector3(cx + 14.3, 0.9, -19.8), Vector3(0.1, 0.1, 5.0), Color(0.8, 0.2, 0.2), true, Vector3(0.24, 0, 0))
+	# рейлы
+	_box(Vector3(cx - 12, 0.55, -18), Vector3(8, 0.1, 0.1), Color(0.8, 0.2, 0.2))
+	_box(Vector3(cx - 15.5, 0.27, -18), Vector3(0.1, 0.55, 0.1), Color(0.3, 0.3, 0.35), false)
+	_box(Vector3(cx - 8.5, 0.27, -18), Vector3(0.1, 0.55, 0.1), Color(0.3, 0.3, 0.35), false)
+	# банк-рампа и мэнуал-пад
+	_box(Vector3(cx - 14, 0.2, -2), Vector3(6, 0.4, 3), Color(0.6, 0.6, 0.65))
+	_kicker(cx - 14, 0.95, 6.0, 0.0, Color(0.7, 0.55, 0.35), -0.13)
+	# входные кикеры
+	_kicker(cx + 12, 4.0, 4.0, 0.0, Color(0.7, 0.55, 0.35))
+	# монеты
+	var cp := [Vector3(cx, 1.4, -10), Vector3(cx, 0.8, -3), Vector3(cx - 8, 0.8, -8), Vector3(cx + 8, 0.8, -6),
+		Vector3(cx - 12, 1.2, -18), Vector3(cx + 12, 2.2, -21), Vector3(cx - 14, 1.2, -2), Vector3(cx, 3.0, -24),
+		Vector3(cx - 19, 1.8, -10), Vector3(cx + 19, 1.8, -10), Vector3(cx, 0.8, 5), Vector3(cx + 12, 0.8, 7),
+		Vector3(cx - 20, 0.8, 4), Vector3(cx + 20, 0.8, 4)]
+	for p in cp:
+		_add_coin(p)
+	# деревья вокруг
+	for tp in [Vector2(cx - 32, -20), Vector2(cx + 32, -20), Vector2(cx - 32, 0), Vector2(cx + 32, 0), Vector2(cx, -36)]:
+		_tree(tp.x, tp.y, 4.5)
+
 # ---------------- игрок ----------------
 func _build_player() -> void:
 	player = CharacterBody3D.new()
+	player.floor_max_angle = deg_to_rad(70.0)
 	player.position = Vector3(0, 0.1, 6)
 	var cs := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
@@ -422,6 +554,8 @@ func _pr_row(i: int) -> Rect2:
 	return Rect2(_pr().position.x + 20, _pr().position.y + 150 + i * 66, 760, 58)
 func _pr_buy(i: int) -> Rect2:
 	return Rect2(_pr_row(i).end.x - 170, _pr_row(i).position.y + 6, 160, 46)
+func _btn_tp() -> Rect2:
+	return Rect2(_vs().x * 0.5 + 150, 86, 200, 56)
 func _btn_swap() -> Rect2:
 	return Rect2(_vs().x - 190, 20, 170, 60)
 func _btn_claim() -> Rect2:
@@ -465,6 +599,9 @@ func _hud_draw() -> void:
 	hud.draw_rect(_btn_house(), Color(0.45, 0.3, 0.1, 0.8), true)
 	hud.draw_rect(_btn_house(), Color(1, 1, 1, 0.6), false, 2.0)
 	_text_c("Дом  +%d ₽" % _pending_income(), _btn_house().get_center(), 24)
+	hud.draw_rect(_btn_tp(), Color(0.15, 0.35, 0.3, 0.8), true)
+	hud.draw_rect(_btn_tp(), Color(1, 1, 1, 0.6), false, 2.0)
+	_text_c("В двор" if _in_park() else "В скейт-парк", _btn_tp().get_center(), 22)
 	_text(_quest_text(), Vector2(22, 165), 20, Color(1, 0.95, 0.6))
 	if toast_t > 0.0:
 		var tr := Rect2(s.x * 0.5 - 340, 160, 680, 64)
@@ -712,6 +849,9 @@ func _on_press(idx: int, p: Vector2) -> void:
 	if _btn_house().has_point(p):
 		panel = "house"
 		return
+	if _btn_tp().has_point(p):
+		_teleport(Vector3(0, 0.5, 6) if _in_park() else Vector3(80, 0.5, 6))
+		return
 	if _btn_swap().has_point(p):
 		state = "select"
 		return
@@ -746,6 +886,7 @@ func _toggle_skate() -> void:
 	skate_speed = 0.0
 	brake_id = -1
 	_reset_trick()
+	player.floor_stop_on_slope = not skating
 	if board != null:
 		board.visible = skating
 	cam.position.z = 5.5 if skating else 4.5
@@ -858,6 +999,8 @@ func _process(d: float) -> void:
 			if float(coin_respawn[i]) <= 0.0:
 				c.visible = true
 	if state == "play":
+		if int(stats["park"]) == 0 and _in_park():
+			stats["park"] = 1
 		_check_quest()
 	if player == null or model == null:
 		return
