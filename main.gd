@@ -3,7 +3,7 @@ extends Node3D
 
 const WALK := 5.0
 const RUN := 8.5
-const SKATE_MAX := 12.0
+const SKATE_MAX := 14.0
 const GRAVITY := 24.0
 const JUMP_V := 8.0
 const STICK_R := 90.0
@@ -891,7 +891,7 @@ func _toggle_skate() -> void:
 	brake_id = -1
 	_reset_trick()
 	player.floor_stop_on_slope = not skating
-	player.floor_max_angle = deg_to_rad(72.0 if skating else 50.0)
+	player.floor_max_angle = deg_to_rad(88.0 if skating else 50.0)
 	player.floor_snap_length = 0.6 if skating else 0.1
 	if board != null:
 		board.visible = skating
@@ -955,9 +955,10 @@ func _physics_process(d: float) -> void:
 			vel.x = hv.x
 			vel.z = hv.z
 			if n.y > 0.99:
-				vel.y = -1.0
+				if vel.y <= 0.0:
+					vel.y = -1.0
 			else:
-				var g := Vector3(0, -GRAVITY, 0)
+				var g := Vector3(0, -15.0, 0)
 				vel += (g - n * g.dot(n)) * d
 		else:
 			vel.y -= GRAVITY * d
