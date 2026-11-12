@@ -473,7 +473,7 @@ func _build_player() -> void:
 	player.add_child(visual)
 	prev_pos = player.position
 	cur_pos = player.position
-	var bscene: PackedScene = load("res://skateboard.glb")
+	var bscene: PackedScene = load("res://skateboard2.glb")
 	if bscene != null:
 		board = bscene.instantiate()
 		board.scale = Vector3.ONE * 1.18
@@ -495,7 +495,7 @@ func _spawn_model(id: String) -> void:
 		model = null
 		anim = null
 	char_id = id
-	var path := "res://sasha_boy_rigged.glb" if id == "boy" else "res://sasha_girl_rigged.glb"
+	var path := "res://sasha_boy.glb" if id == "boy" else "res://sasha_girl.glb"
 	var sc: PackedScene = load(path)
 	if sc == null:
 		return
@@ -508,9 +508,28 @@ func _spawn_model(id: String) -> void:
 		for n in anim.get_animation_list():
 			var a: Animation = anim.get_animation(n)
 			a.loop_mode = Animation.LOOP_LINEAR if (n in LOOPING) else Animation.LOOP_NONE
+	_attach_cap(id)
 	cur_anim = ""
 	_play("idle")
 	_save()
+
+func _attach_cap(id: String) -> void:
+	var skel := model.find_child("Skeleton3D", true, false) as Skeleton3D
+	if skel == null:
+		return
+	var bi := skel.find_bone("Head")
+	if bi < 0:
+		return
+	var capscene: PackedScene = load("res://red_cap.glb")
+	if capscene == null:
+		return
+	var att := BoneAttachment3D.new()
+	att.bone_name = "Head"
+	skel.add_child(att)
+	var c: Node3D = capscene.instantiate()
+	c.position = Vector3(0.0, 0.122 if id == "boy" else 0.13, -0.01)
+	c.rotation_degrees = Vector3(5.0, 0.0, 0.0)
+	att.add_child(c)
 
 func _play(n: String) -> void:
 	if anim == null or cur_anim == n:
@@ -962,6 +981,13 @@ func _physics_process(d: float) -> void:
 				vel += (g - n * g.dot(n)) * d
 		else:
 			vel.y -= GRAVITY * d
+			if mag > 0.15:
+				var hv2 := Vector3(vel.x, 0, vel.z)
+				var want := dir * minf(SKATE_MAX * mag, 8.0)
+				if hv2.length() < want.length():
+					hv2 = hv2.move_toward(want, 20.0 * d)
+					vel.x = hv2.x
+					vel.z = hv2.z
 	if not skating:
 		if not on_floor:
 			vel.y -= GRAVITY * d
