@@ -8,7 +8,7 @@ const GRAVITY := 24.0
 const JUMP_V := 8.0
 const STICK_R := 90.0
 const MODEL_SCALE := 1.05
-const SKATE_LIFT := 0.165
+const SKATE_LIFT := 0.217
 const LOOPING := ["idle", "walk", "run", "fall", "skate_ride", "skate_push"]
 const SAVE_PATH := "user://save.json"
 const TRICKS := [
@@ -476,13 +476,13 @@ func _build_player() -> void:
 	var bscene: PackedScene = load("res://skateboard2.glb")
 	if bscene != null:
 		board = bscene.instantiate()
-		board.scale = Vector3.ONE * 1.18
+		board.scale = Vector3.ONE * 1.55
 		board.visible = false
 		visual.add_child(board)
 	cam_pivot = Node3D.new()
 	add_child(cam_pivot)
 	cam = Camera3D.new()
-	cam.position = Vector3(0, 0, 3.6)
+	cam.position = Vector3(0, 0, 2.7)
 	cam.fov = 70
 	cam.current = true
 	cam_pivot.add_child(cam)
@@ -527,8 +527,13 @@ func _attach_cap(id: String) -> void:
 	att.bone_name = "Head"
 	skel.add_child(att)
 	var c: Node3D = capscene.instantiate()
-	c.position = Vector3(0.0, 0.122 if id == "boy" else 0.13, -0.01)
-	c.rotation_degrees = Vector3(5.0, 0.0, 0.0)
+	if id == "boy":
+		c.position = Vector3(0.0, 0.145, -0.015)
+		c.scale = Vector3(0.92, 0.92, 0.92)
+	else:
+		c.position = Vector3(0.0, 0.12, -0.015)
+		c.scale = Vector3(0.9, 0.78, 0.9)
+	c.rotation_degrees = Vector3(6.0, 0.0, 0.0)
 	att.add_child(c)
 
 func _play(n: String) -> void:
@@ -914,7 +919,7 @@ func _toggle_skate() -> void:
 	player.floor_snap_length = 0.6 if skating else 0.1
 	if board != null:
 		board.visible = skating
-	cam.position.z = 4.4 if skating else 3.6
+	cam.position.z = 3.4 if skating else 2.7
 	cur_anim = ""
 
 func _do_jump() -> void:
