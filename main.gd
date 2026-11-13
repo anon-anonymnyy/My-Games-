@@ -528,11 +528,11 @@ func _attach_cap(id: String) -> void:
 	skel.add_child(att)
 	var c: Node3D = capscene.instantiate()
 	if id == "boy":
-		c.position = Vector3(0.0, 0.145, -0.015)
-		c.scale = Vector3(0.92, 0.92, 0.92)
-	else:
 		c.position = Vector3(0.0, 0.12, -0.015)
-		c.scale = Vector3(0.9, 0.78, 0.9)
+		c.scale = Vector3(0.74, 0.70, 0.74)
+	else:
+		c.position = Vector3(0.0, 0.10, -0.015)
+		c.scale = Vector3(0.72, 0.60, 0.72)
 	c.rotation_degrees = Vector3(6.0, 0.0, 0.0)
 	att.add_child(c)
 
@@ -1072,6 +1072,8 @@ func _process(d: float) -> void:
 	visual.basis = Basis(vx, vis_up, vz)
 	var lift := SKATE_LIFT if skating else 0.0
 	model.position.y = lerpf(model.position.y, MODEL_SCALE + lift, minf(1.0, 15.0 * d))
+	model.position.x = lerpf(model.position.x, 0.25 if skating else 0.0, minf(1.0, 15.0 * d))
+	model.position.z = lerpf(model.position.z, 0.0 if skating else 0.0, minf(1.0, 15.0 * d))
 	if board != null and skating:
 		if trick_active:
 			trick_t = maxf(0.0, trick_t - d)
