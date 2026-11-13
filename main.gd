@@ -8,8 +8,8 @@ const GRAVITY := 24.0
 const JUMP_V := 8.0
 const STICK_R := 90.0
 const MODEL_SCALE := 1.05
-const SKATE_LIFT := 0.217
-const LOOPING := ["idle", "walk", "run", "fall", "skate_ride", "skate_push"]
+const SKATE_LIFT := 0.175
+const LOOPING := ["idle", "walk", "run", "fall", "skate_ride", "skate_push", "skate_stand"]
 const SAVE_PATH := "user://save.json"
 const TRICKS := [
 	{"id": "kickflip", "name": "Кикфлип", "pts": 300},
@@ -56,6 +56,10 @@ var pitch := -0.2
 var heading := 0.0
 var skating := false
 var skate_speed := 0.0
+var mount_t := 0.0
+var push_t := 0.0
+var push_cd := 2.5
+var boost := 0.0
 var vel := Vector3.ZERO
 var was_on_floor := true
 var land_t := 0.0
@@ -508,7 +512,6 @@ func _spawn_model(id: String) -> void:
 		for n in anim.get_animation_list():
 			var a: Animation = anim.get_animation(n)
 			a.loop_mode = Animation.LOOP_LINEAR if (n in LOOPING) else Animation.LOOP_NONE
-	_attach_cap(id)
 	cur_anim = ""
 	_play("idle")
 	_save()
@@ -919,6 +922,10 @@ func _toggle_skate() -> void:
 	player.floor_snap_length = 0.6 if skating else 0.1
 	if board != null:
 		board.visible = skating
+	mount_t = 0.8 if skating else 0.0
+	push_t = 0.0
+	push_cd = 2.5
+	boost = 0.0
 	cam.position.z = 3.4 if skating else 2.7
 	cur_anim = ""
 
@@ -945,6 +952,9 @@ func _physics_process(d: float) -> void:
 	if state != "play" or model == null:
 		return
 	var mag := stick_vec.length()
+	if skating and mount_t > 0.0:
+		mount_t = maxf(0.0, mount_t - d)
+		mag = 0.0
 	var dir := Vector3(stick_vec.x, 0, stick_vec.y).rotated(Vector3.UP, yaw)
 	var on_floor := player.is_on_floor()
 	if not skating:
@@ -967,9 +977,12 @@ func _physics_process(d: float) -> void:
 			var along := hv.dot(fwd)
 			var lat := hv - fwd * along
 			lat = lat.move_toward(Vector3.ZERO, 14.0 * d)
+			var tspd := SKATE_MAX * mag * (0.8 + 0.2 * boost)
 			if mag > 0.15:
-				if along < SKATE_MAX * mag:
-					along = move_toward(along, SKATE_MAX * mag, 6.0 * d)
+				if along < tspd:
+					along = move_toward(along, tspd, 6.0 * d)
+				else:
+					along = move_toward(along, tspd, 0.7 * d)
 			else:
 				along = move_toward(along, 0.0, 1.2 * d)
 			if brake_id != -1:
@@ -1005,6 +1018,18 @@ func _physics_process(d: float) -> void:
 	cur_pos = player.global_position
 	if skating:
 		skate_speed = Vector2(vel.x, vel.z).length()
+		boost = maxf(0.0, boost - d / 3.5)
+		if player.is_on_floor() and mag > 0.15 and mount_t <= 0.0 and not trick_active:
+			if push_t > 0.0:
+				push_t = maxf(0.0, push_t - d)
+			elif skate_speed > 3.0 and skate_speed >= SKATE_MAX * mag * 0.7:
+				push_cd -= d
+				if push_cd <= 0.0:
+					push_t = 1.1
+					push_cd = randf_range(3.0, 5.0)
+					boost = 1.0
+		else:
+			push_t = 0.0
 	if skating and player.is_on_floor():
 		stats["dist"] = float(stats["dist"]) + Vector2(vel.x, vel.z).length() * d
 	if player.is_on_floor() and not was_on_floor:
@@ -1030,8 +1055,14 @@ func _physics_process(d: float) -> void:
 	elif land_t > 0.0 and not skating:
 		_play("land")
 	elif skating:
-		if mag > 0.15 and skate_speed < SKATE_MAX * 0.7:
+		if mount_t > 0.0:
+			_play("skate_mount")
+		elif push_t > 0.0:
+			_play("skate_kick")
+		elif mag > 0.15 and skate_speed < SKATE_MAX * mag * 0.7:
 			_play("skate_push")
+		elif mag <= 0.15 and skate_speed < 0.6:
+			_play("skate_stand")
 		else:
 			_play("skate_ride")
 	elif hs > 6.0:
@@ -1071,8 +1102,9 @@ func _process(d: float) -> void:
 	var vx := vis_up.cross(vz).normalized()
 	visual.basis = Basis(vx, vis_up, vz)
 	var lift := SKATE_LIFT if skating else 0.0
-	model.position.y = lerpf(model.position.y, MODEL_SCALE + lift, minf(1.0, 15.0 * d))
-	model.position.x = lerpf(model.position.x, 0.25 if skating else 0.0, minf(1.0, 15.0 * d))
+	var lk := 7.0 if mount_t > 0.0 else 15.0
+	model.position.y = lerpf(model.position.y, MODEL_SCALE + lift, minf(1.0, lk * d))
+	model.position.x = lerpf(model.position.x, 0.25 if skating else 0.0, minf(1.0, lk * d))
 	model.position.z = lerpf(model.position.z, 0.0 if skating else 0.0, minf(1.0, 15.0 * d))
 	if board != null and skating:
 		if trick_active:
