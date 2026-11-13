@@ -8,7 +8,7 @@ const GRAVITY := 24.0
 const JUMP_V := 8.0
 const STICK_R := 90.0
 const MODEL_SCALE := 1.05
-const SKATE_LIFT := 0.175
+const SKATE_LIFT := 0.15
 const LOOPING := ["idle", "walk", "run", "fall", "skate_ride", "skate_push", "skate_stand"]
 const SAVE_PATH := "user://save.json"
 const TRICKS := [
@@ -993,7 +993,7 @@ func _physics_process(d: float) -> void:
 			vel.z = hv.z
 			if n.y > 0.99:
 				if vel.y <= 0.0:
-					vel.y = -1.0
+					vel.y = -1.0 if hv.length() > 0.8 else 0.0
 			else:
 				var g := Vector3(0, -15.0, 0)
 				vel += (g - n * g.dot(n)) * d
@@ -1059,9 +1059,9 @@ func _physics_process(d: float) -> void:
 			_play("skate_mount")
 		elif push_t > 0.0:
 			_play("skate_kick")
-		elif mag > 0.15 and skate_speed < SKATE_MAX * mag * 0.7:
+		elif mag > 0.25 and skate_speed < SKATE_MAX * mag * 0.7:
 			_play("skate_push")
-		elif mag <= 0.15 and skate_speed < 0.6:
+		elif mag <= 0.25 and skate_speed < 1.2:
 			_play("skate_stand")
 		else:
 			_play("skate_ride")
