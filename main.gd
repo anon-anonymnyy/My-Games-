@@ -1,5 +1,5 @@
 extends Node3D
-# «Саша на борде» — сборка 1 «Двор»
+# «Саша на борде» — сборка 2 «Первые деньги»
 
 const WALK := 5.0
 const RUN := 8.5
@@ -109,6 +109,8 @@ func _ready() -> void:
 	_build_skatepark()
 	_build_player()
 	_build_hud()
+	_build_story()
+	_set_step(story)
 	_apply_upgrades()
 	_check_daily()
 	if char_id != "":
@@ -132,6 +134,8 @@ func _load_save() -> void:
 		quest_i = int(data.get("quest_i", 0))
 		owned = data.get("owned", [])
 		last_collect = int(data.get("last_collect", 0))
+		story = int(data.get("story", 0))
+		gear = data.get("gear", [])
 		var st = data.get("stats", {})
 		if typeof(st) == TYPE_DICTIONARY:
 			for k in stats.keys():
@@ -141,7 +145,7 @@ func _save() -> void:
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f == null:
 		return
-	f.store_string(JSON.stringify({"coins": coins, "streak": streak, "last_day": last_day, "char": char_id, "tricks_open": tricks_open, "quest_i": quest_i, "owned": owned, "last_collect": last_collect, "stats": stats}))
+	f.store_string(JSON.stringify({"coins": coins, "streak": streak, "last_day": last_day, "char": char_id, "tricks_open": tricks_open, "quest_i": quest_i, "owned": owned, "last_collect": last_collect, "story": story, "gear": gear, "stats": stats}))
 
 func _check_daily() -> void:
 	var today := int(Time.get_unix_time_from_system() / 86400.0)
@@ -295,9 +299,12 @@ func _build_world() -> void:
 	for i in range(-4, 5):
 		if i == 0:
 			continue
-		if i != 3 and i != 4:
+		if i != 3 and i != 4 and i != -3:
 			_house(i * 22.0, -9.0, 10, 7, 4.2 + (i % 2) * 0.8, wc[absi(i) % 4], Color(0.35, 0.25, 0.25), 1.0)
-		_house(i * 22.0 + 6, 36.0, 10, 7, 5.0, wc[(absi(i) + 1) % 4], Color(0.3, 0.3, 0.38), -1.0)
+		if i != -3 and i != -2:
+			_house(i * 22.0 + 6, 36.0, 10, 7, 5.0, wc[(absi(i) + 1) % 4], Color(0.3, 0.3, 0.38), -1.0)
+	_build_market()
+	_build_shop()
 	# скейт-элементы во дворе
 	_box(Vector3(6, 0.45, 3), Vector3(3, 0.3, 4), Color(0.7, 0.55, 0.35), true, Vector3(0.26, 0, 0))
 	_box(Vector3(-7, 0.3, 4), Vector3(4, 0.6, 3), Color(0.6, 0.6, 0.65))
@@ -556,6 +563,12 @@ func _build_hud() -> void:
 	hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(hud)
 	hud.draw.connect(_hud_draw)
+	mini = Control.new()
+	mini.size = Vector2(MM_SIZE, MM_SIZE)
+	mini.clip_contents = true
+	mini.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(mini)
+	mini.draw.connect(_mini_draw)
 
 func _vs() -> Vector2:
 	return get_viewport().get_visible_rect().size
@@ -623,7 +636,7 @@ func _hud_draw() -> void:
 	# монеты и место
 	hud.draw_rect(Rect2(20, 20, 260, 56), Color(0, 0, 0, 0.45), true)
 	_text("%d ₽" % coins, Vector2(36, 60), 34, Color(1, 0.9, 0.3))
-	_text("Липовая", Vector2(22, 100), 24, Color(1, 1, 1, 0.8))
+	_text(_district(), Vector2(22, 100), 24, Color(1, 1, 1, 0.8))
 	_text("FPS %d" % Engine.get_frames_per_second(), Vector2(22, 130), 20, Color(1, 1, 1, 0.6))
 	hud.draw_rect(_btn_swap(), Color(0, 0, 0, 0.45), true)
 	_text_c("Сменить", _btn_swap().get_center(), 26)
@@ -632,12 +645,15 @@ func _hud_draw() -> void:
 	_text_c("Дом  +%d ₽" % _pending_income(), _btn_house().get_center(), 24)
 	hud.draw_rect(_btn_tp(), Color(0.15, 0.35, 0.3, 0.8), true)
 	hud.draw_rect(_btn_tp(), Color(1, 1, 1, 0.6), false, 2.0)
-	_text_c("В двор" if _in_park() else "В скейт-парк", _btn_tp().get_center(), 22)
-	_text(_quest_text(), Vector2(22, 165), 20, Color(1, 0.95, 0.6))
+	_text_c("→ " + str((TP[tp_i % TP.size()] as Array)[0]), _btn_tp().get_center(), 22)
+	hud.draw_rect(Rect2(20, 148, 340, 100), Color(0, 0, 0, 0.45), true)
+	_text("ЗАДАНИЕ", Vector2(30, 170), 16, Color(1, 0.85, 0.3))
+	hud.draw_multiline_string(font, Vector2(30, 194), _obj_text(), HORIZONTAL_ALIGNMENT_LEFT, 320.0, 20, 3, Color.WHITE)
+	_text("Доп.: " + _quest_text().replace("Задание: ", ""), Vector2(22, 268), 16, Color(1, 0.95, 0.6, 0.8))
 	if toast_t > 0.0:
-		var tr := Rect2(s.x * 0.5 - 340, 160, 680, 64)
+		var tr := Rect2(s.x * 0.5 - 260, 160, 520, 64)
 		hud.draw_rect(tr, Color(0.1, 0.4, 0.15, 0.88), true)
-		_text_c(toast, tr.get_center(), 26)
+		_text_c(toast, tr.get_center(), 22)
 	# джойстик
 	if stick_id != -1:
 		hud.draw_circle(stick_origin, STICK_R, Color(1, 1, 1, 0.15))
@@ -656,8 +672,15 @@ func _hud_draw() -> void:
 		_text_c("Трюк", _btn_trick(), 24)
 		_btn_draw(_btn_cycle(), 46, Color(0.15, 0.2, 0.35, 0.55))
 		_text_c(_trick_name(), _btn_cycle(), 16)
+	if act_id != "":
+		_btn_draw(_btn_act(), 56, Color(0.2, 0.6, 0.3, 0.8))
+		_text_c(act_label, _btn_act(), 22)
 	if panel == "house":
 		_draw_house_panel(s)
+	if panel == "shop":
+		_draw_shop_panel(s)
+	if dlg.size() > 0:
+		_draw_dialog(s)
 	# ежедневная награда
 	if popup:
 		hud.draw_rect(Rect2(Vector2.ZERO, s), Color(0, 0, 0, 0.6))
@@ -714,6 +737,8 @@ func _income_h() -> int:
 	for i in range(UPGRADES.size()):
 		if _has(i):
 			t += int(UPGRADES[i]["inc"])
+	if story >= 7:
+		t += 50
 	return t
 
 func _pending_income() -> int:
@@ -826,6 +851,8 @@ func _reset_trick() -> void:
 func _on_land() -> void:
 	if trick_active and trick_t < 0.25:
 		trick_pending = int(trick_def["pts"])
+	if trick_pending > 0 and "grip" in gear:
+		trick_pending = int(float(trick_pending) * 1.2)
 	if trick_pending > 0:
 		stats["tricks"] = int(stats["tricks"]) + 1
 		stats["score"] = int(stats["score"]) + trick_pending
@@ -836,6 +863,580 @@ func _on_land() -> void:
 	elif trick_active:
 		_toast("Не докрутил трюк")
 	_reset_trick()
+
+# ---------------- сюжет, NPC, диалоги (сборка 2) ----------------
+const LIGHT_COST := 500
+const MM_SIZE := 170.0
+const MM_SCALE := 1.3
+const L_PTS := [Vector3(-60, 0, 13), Vector3(-42, 0, 27), Vector3(-26, 0, 13), Vector3(-10, 0, 27), Vector3(8, 0, 13)]
+const CAR_POS := Vector3(-60, 0, 35)
+const DOOR_POS := Vector3(-4, 0, -3.8)
+const THUG_WP := [Vector3(-47, 0.04, 35.5), Vector3(-47, 0.04, 31.0), Vector3(-38, 0.04, 22.0), Vector3(0, 0.04, 22.0), Vector3(40, 0.04, 22.0), Vector3(40, 0.04, 17.0), Vector3(0, 0.04, 17.0), Vector3(-40, 0.04, 17.0), Vector3(-47, 0.04, 31.0)]
+const TP := [["Двор", Vector3(0, 0.5, 6)], ["Рынок", Vector3(-50, 0.5, 31)], ["Скейт-парк", Vector3(80, 0.5, 6)]]
+const NPC_DEF := {
+	"lyuda": {"file": "npc_granny", "name": "Тётя Люда", "pos": Vector3(-22, 0, -3), "ry": 0.0},
+	"gosha": {"file": "npc_shopkeeper", "name": "Дядя Гоша", "pos": Vector3(-50, 0, 41.6), "ry": PI},
+	"kesha": {"file": "npc_mechanic", "name": "Кеша", "pos": Vector3(-66, 0, -3), "ry": 0.0}}
+const SHOP := [
+	{"id": "wheels", "name": "Колёса", "desc": "+1 к максимальной скорости", "cost": 300},
+	{"id": "bearings", "name": "Подшипники", "desc": "+1,5 к максимальной скорости", "cost": 700},
+	{"id": "grip", "name": "Грип-лента", "desc": "+20% очков за трюки", "cost": 500}]
+const OBJ := [
+	"Поговори с тётей Людой (она стоит слева от двора)",
+	"Найди дядю Гошу на рынке (кнопка «→ Рынок» вверху)",
+	"Листовки: разнеси по адресам (%d/5)",
+	"Вернись к дяде Гоше за новой работой",
+	"Горячая доставка: отвези пирожки тёте Люде! Осталось %d с",
+	"Помой машину дяди Гоши на рынке (%d/14)",
+	"Заплати за свет: %d ₽ у двери бабушкиного дома",
+	"Сходи к Кеше в скейт-шоп (дом далеко слева)",
+	"Купи колёса у Кеши (300 ₽)",
+	"Беги к дяде Гоше: на рынке беда!",
+	"Догони вора с кассой! Осталось %d с",
+	"Вернись к дяде Гоше с кассой",
+	"Сборка 2 пройдена! Копи деньги, улучшай дом, катайся"]
+const DLG := {
+	"prolog": [
+		["Саша", "Щёлк, щёлк… Света нет. Холодильник молчит, чайник молчит. Хоть кто-то в этом доме отдыхает."],
+		["Тётя Люда", "Доброе утро, Саша! Свет вам отключили за долг, милый. Бабушка в санатории, так что разбираться тебе."],
+		["Саша", "Значит, срочно нужны деньги. Хоть какая-нибудь подработка."],
+		["Тётя Люда", "Иди на рынок к дяде Гоше. Мужик добрый, работу найдёт. Рынок слева по улице, или нажми кнопку «→ Рынок» вверху."],
+		["Тётя Люда", "И бери скейт. На нём ты быстрее автобуса."]],
+	"gosha1": [
+		["Дядя Гоша", "О, Саша! Чего такой хмурый? Хмурый у нас другой, он по рынку ходит, лучше с ним не пересекаться."],
+		["Саша", "Дядя Гоша, у нас свет отключили. Нужны деньги, любые честные."],
+		["Дядя Гоша", "Честные у меня есть. Бери листовки моей лавки и разнеси по пяти адресам. Они отмечены на мини-карте жёлтым."],
+		["Дядя Гоша", "На скейте быстрее. Только почтовые ящики не сбивай!"]],
+	"gosha2": [
+		["Дядя Гоша", "Ровно пять! Ни одной не выкинул в урну, уважаю. Деньги получил?"],
+		["Дядя Гоша", "Теперь горячая работа, в прямом смысле. Отвези пирожки тёте Люде, пока не остыли. У тебя 90 секунд!"]],
+	"deliver_ok": [
+		["Тётя Люда", "Пирожки ещё горячие! Саша, ты быстрее любого курьера. Вот тебе за доставку."],
+		["Тётя Люда", "А ещё у дяди Гоши на рынке машина вся в грязи. Он давно просит помыть. Сходи, заработаешь."]],
+	"wash_ok": [
+		["Саша", "Блестит как новая! Теперь можно думать про свет."],
+		["Саша", "Нужно накопить на оплату и идти к двери бабушкиного дома. Монеты на улице тоже помогут."]],
+	"light_ok": [
+		["Саша", "Щёлк! Свет! Чайник! Холодильник! Никогда так не радовался электричеству."],
+		["Саша", "Дом теперь приносит немного денег. А скейт совсем облысел: колёса стёрты. Надо к Кеше."]],
+	"kesha1": [
+		["Кеша", "О, Саша! Это что у тебя? Колёса стёрлись, это не доска, а санки."],
+		["Саша", "Денег мало, но колёса нужны."],
+		["Кеша", "Колёса стоят 300 ₽. Подшипники и грип позже, когда разбогатеешь. Заходи, вот прайс."]],
+	"kesha_hi": [
+		["Кеша", "Заходи! Смотри, что есть."]],
+	"kesha_ok": [
+		["Кеша", "Другое дело! Теперь едет как по маслу. Только в рыночные лавки не врезайся."],
+		["Саша", "Спасибо, Кеша! Как раз надо к дяде Гоше."]],
+	"gosha3": [
+		["Дядя Гоша", "Саша! Беда! Хмурый с подручным утащили мою кассу и бегут по улице!"],
+		["Дядя Гоша", "Драться не надо, ты у нас интеллигент. Просто догони! Скейт у тебя теперь отличный."]],
+	"thug_caught": [
+		["Подручный", "Ай! Ладно-ладно, забирай свою кассу! Только Хмурому не говори!"],
+		["Саша", "Передам привет. Кассу несу дяде Гоше."]],
+	"gosha4": [
+		["Дядя Гоша", "Касса на месте! Саша, ты настоящая находка. Вот премия."],
+		["Дядя Гоша", "Хулиганов гонять хорошо, но надо уметь и постоять за себя. Тренер Пак как раз ищет учеников."],
+		["", "Зал тренера Пака и новые задания появятся в следующем обновлении. Пока катайся, копи деньги и улучшай дом."]],
+	"hi_gosha": [
+		["Дядя Гоша", "Заходи, Саша! Работы пока нет, но скоро будет. Рынок любит расторопных."]],
+	"hi_lyuda": [
+		["Тётя Люда", "Здравствуй, Саша! Кушать хочешь? Шучу, у тебя же скейт, ты на нём всё время едешь."]]}
+
+var story := 0
+var sp := 0
+var step_t := 0.0
+var gear: Array = []
+var dlg: Array = []
+var dlg_i := 0
+var dlg_after: Callable = Callable()
+var npcs: Dictionary = {}
+var tgt_node: MeshInstance3D
+var car_mat: StandardMaterial3D
+var lamp_built := false
+var act_id := ""
+var act_label := ""
+var mini: Control
+var tp_i := 1
+var thug: Node3D
+var thug_wp := 1
+
+func _smax() -> float:
+	var m := SKATE_MAX
+	if "wheels" in gear:
+		m += 1.0
+	if "bearings" in gear:
+		m += 1.5
+	return m
+
+func _label(t: String, pos: Vector3, fs: int, c: Color, px := 0.012) -> void:
+	var lb := Label3D.new()
+	lb.text = t
+	lb.font_size = fs
+	lb.pixel_size = px
+	lb.position = pos
+	lb.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+	lb.modulate = c
+	lb.outline_modulate = Color(0.1, 0.1, 0.1)
+	add_child(lb)
+
+func _glow_box(pos: Vector3, size: Vector3, c: Color) -> void:
+	var b := _box(pos, size, c, false)
+	var m := (b.get_child(0) as MeshInstance3D).material_override as StandardMaterial3D
+	m.emission_enabled = true
+	m.emission = c
+	m.emission_energy_multiplier = 1.2
+
+func _build_market() -> void:
+	_box(Vector3(-50, 0.03, 44), Vector3(40, 0.06, 28), Color(0.8, 0.76, 0.66), false)
+	_box(Vector3(-58, 2.0, 31.5), Vector3(0.3, 4.0, 0.3), Color(0.35, 0.25, 0.2), false)
+	_box(Vector3(-42, 2.0, 31.5), Vector3(0.3, 4.0, 0.3), Color(0.35, 0.25, 0.2), false)
+	_box(Vector3(-50, 4.0, 31.5), Vector3(16.6, 0.3, 0.3), Color(0.35, 0.25, 0.2), false)
+	_label("РЫНОК", Vector3(-50, 5.2, 31.5), 160, Color(1, 0.85, 0.2))
+	var awn := [Color(0.85, 0.25, 0.2), Color(0.2, 0.55, 0.8), Color(0.9, 0.7, 0.15), Color(0.3, 0.65, 0.35), Color(0.7, 0.3, 0.6)]
+	var xs := [-64.0, -57.0, -50.0, -43.0, -36.0]
+	for k in range(5):
+		var x: float = xs[k]
+		_box(Vector3(x, 0.5, 40), Vector3(3.2, 1.0, 1.2), Color(0.6, 0.45, 0.3))
+		_box(Vector3(x - 1.6, 1.4, 41.8), Vector3(0.12, 2.8, 0.12), Color(0.4, 0.3, 0.2), false)
+		_box(Vector3(x + 1.6, 1.4, 41.8), Vector3(0.12, 2.8, 0.12), Color(0.4, 0.3, 0.2), false)
+		_box(Vector3(x, 2.85, 40.6), Vector3(3.8, 0.12, 2.6), awn[k], false, Vector3(-0.12, 0, 0))
+		for j in range(3):
+			_box(Vector3(x - 1.0 + j, 1.15, 40), Vector3(0.4, 0.3, 0.4), Color.from_hsv(0.12 * float(j + k), 0.6, 0.9), false)
+	_label("ЛАВКА У ГОШИ", Vector3(-50, 3.5, 39.0), 110, Color(1, 1, 1), 0.009)
+	for cp in [Vector3(-68, 0.4, 50), Vector3(-66.5, 0.4, 50.4), Vector3(-67.2, 1.2, 50.2), Vector3(-33, 0.4, 52), Vector3(-34.4, 0.4, 51.6)]:
+		_box(cp, Vector3(1.0, 0.8, 1.0), Color(0.62, 0.48, 0.3))
+	# машина дяди Гоши
+	car_mat = _mat(Color(0.38, 0.3, 0.22), 0.6)
+	var body := _box(CAR_POS + Vector3(0, 0.65, 0), Vector3(4.2, 0.8, 1.9), Color(0.38, 0.3, 0.22))
+	(body.get_child(0) as MeshInstance3D).material_override = car_mat
+	var cab := _box(CAR_POS + Vector3(-0.2, 1.4, 0), Vector3(2.3, 0.7, 1.7), Color(0.4, 0.5, 0.6), false)
+	(cab.get_child(0) as MeshInstance3D).material_override = car_mat
+	for wx in [-1.3, 1.3]:
+		for wz in [-0.95, 0.95]:
+			_box(CAR_POS + Vector3(wx, 0.3, wz), Vector3(0.7, 0.6, 0.25), Color(0.1, 0.1, 0.1), false)
+
+func _build_shop() -> void:
+	_house(-66, -9, 10, 7, 4.5, Color(0.3, 0.35, 0.5), Color(0.2, 0.2, 0.25), 1.0)
+	_label("СКЕЙТ-ШОП КЕШИ", Vector3(-66, 3.7, -5.3), 120, Color(1, 0.85, 0.2), 0.009)
+	var bc := [Color(0.85, 0.25, 0.2), Color(0.2, 0.6, 0.85), Color(0.9, 0.7, 0.15), Color(0.3, 0.7, 0.4)]
+	for k in range(4):
+		_box(Vector3(-70.2 + k * 1.1, 1.6, -5.4), Vector3(0.45, 1.5, 0.06), bc[k], false)
+
+func _build_story() -> void:
+	for id in NPC_DEF.keys():
+		var def: Dictionary = NPC_DEF[id]
+		var n := _spawn_npc(str(def["file"]), str(def["name"]), def["pos"], float(def["ry"]), true)
+		var an := n.find_child("AnimationPlayer", true, false) as AnimationPlayer
+		npcs[id] = {"node": n, "anim": an, "ry": float(def["ry"])}
+	for p in L_PTS:
+		_box(p + Vector3(0, 0.45, 0), Vector3(0.12, 0.9, 0.12), Color(0.3, 0.3, 0.35), false)
+		_box(p + Vector3(0, 1.0, 0), Vector3(0.6, 0.4, 0.4), Color(0.2, 0.4, 0.85), false)
+	tgt_node = MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.7
+	cm.bottom_radius = 0.7
+	cm.height = 12.0
+	tgt_node.mesh = cm
+	var bm := StandardMaterial3D.new()
+	bm.albedo_color = Color(1, 0.85, 0.1, 0.3)
+	bm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	bm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	bm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	tgt_node.material_override = bm
+	tgt_node.visible = false
+	add_child(tgt_node)
+
+func _spawn_npc(file: String, nm: String, pos: Vector3, ry: float, solid: bool) -> Node3D:
+	var n := Node3D.new()
+	n.position = pos
+	n.rotation.y = ry
+	add_child(n)
+	var path := "res://%s.glb" % file
+	var sc: PackedScene = null
+	if ResourceLoader.exists(path):
+		sc = load(path)
+	if sc != null:
+		var m: Node3D = sc.instantiate()
+		m.scale = Vector3.ONE * MODEL_SCALE
+		m.position = Vector3(0, MODEL_SCALE, 0)
+		n.add_child(m)
+		var an := m.find_child("AnimationPlayer", true, false) as AnimationPlayer
+		if an != null:
+			for a in an.get_animation_list():
+				an.get_animation(a).loop_mode = Animation.LOOP_LINEAR if (a in LOOPING) else Animation.LOOP_NONE
+			if an.has_animation("idle"):
+				an.play("idle")
+	else:
+		var pm := MeshInstance3D.new()
+		var cap := CapsuleMesh.new()
+		cap.radius = 0.35
+		cap.height = 1.8
+		pm.mesh = cap
+		pm.material_override = _mat(Color(0.8, 0.5, 0.3))
+		pm.position = Vector3(0, 0.9, 0)
+		n.add_child(pm)
+	if solid:
+		var sb := StaticBody3D.new()
+		var cs := CollisionShape3D.new()
+		var sh := CapsuleShape3D.new()
+		sh.radius = 0.4
+		sh.height = 1.9
+		cs.shape = sh
+		cs.position = Vector3(0, 0.95, 0)
+		sb.add_child(cs)
+		n.add_child(sb)
+	var lb := Label3D.new()
+	lb.text = nm
+	lb.font_size = 64
+	lb.pixel_size = 0.006
+	lb.position = Vector3(0, 2.4, 0)
+	lb.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+	lb.outline_modulate = Color(0.1, 0.1, 0.1)
+	n.add_child(lb)
+	return n
+
+func _npc_pos(id: String) -> Vector3:
+	return (NPC_DEF[id] as Dictionary)["pos"]
+
+func _flat_dist(a: Vector3, b: Vector3) -> float:
+	return Vector2(a.x - b.x, a.z - b.z).length()
+
+func _spawn_thug() -> void:
+	if thug != null:
+		thug.queue_free()
+	thug = _spawn_npc("npc_thug", "Подручный", THUG_WP[0], 0.0, false)
+	thug_wp = 1
+	var an := thug.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	if an != null and an.has_animation("run"):
+		an.play("run")
+
+func _thug_move(d: float) -> void:
+	var wp: Vector3 = THUG_WP[thug_wp]
+	var dv := wp - thug.position
+	dv.y = 0.0
+	if dv.length() < 0.6:
+		thug_wp = (thug_wp + 1) % THUG_WP.size()
+		if thug_wp == 0:
+			thug_wp = 1
+		return
+	thug.position += dv.normalized() * 6.5 * d
+	thug.rotation.y = lerp_angle(thug.rotation.y, atan2(dv.x, dv.z), minf(1.0, 10.0 * d))
+
+func _set_step(i: int) -> void:
+	story = i
+	sp = 0
+	step_t = 0.0
+	if i == 4:
+		step_t = 90.0
+	if i == 10:
+		step_t = 80.0
+		_spawn_thug()
+	elif thug != null:
+		thug.queue_free()
+		thug = null
+	_apply_story_vis()
+	_save()
+
+func _update_car() -> void:
+	if car_mat == null:
+		return
+	var t := 0.0
+	if story > 5:
+		t = 1.0
+	elif story == 5:
+		t = clampf(float(sp) / 14.0, 0.0, 1.0)
+	car_mat.albedo_color = Color(0.38, 0.3, 0.22).lerp(Color(0.2, 0.5, 0.85), t)
+
+func _apply_story_vis() -> void:
+	_update_car()
+	if story >= 7 and not lamp_built:
+		lamp_built = true
+		for dx in [-3.3, 3.3]:
+			_glow_box(Vector3(-4.0 + dx, 2.475, -5.4), Vector3(1.3, 1.2, 0.04), Color(1, 0.9, 0.5))
+		_box(Vector3(3.5, 1.4, -3.0), Vector3(0.12, 2.8, 0.12), Color(0.25, 0.25, 0.3), false)
+		_glow_box(Vector3(3.5, 2.9, -3.0), Vector3(0.5, 0.4, 0.5), Color(1, 0.95, 0.6))
+
+func _story_target() -> Variant:
+	match story:
+		0, 4:
+			return _npc_pos("lyuda")
+		1, 3, 9, 11:
+			return _npc_pos("gosha")
+		2:
+			return L_PTS[mini(sp, L_PTS.size() - 1)]
+		5:
+			return CAR_POS
+		6:
+			return DOOR_POS
+		7, 8:
+			return _npc_pos("kesha")
+		10:
+			if thug != null:
+				return thug.position
+	return null
+
+func _obj_text() -> String:
+	var t: String = OBJ[mini(story, OBJ.size() - 1)]
+	match story:
+		2, 5:
+			return t % [sp]
+		4, 10:
+			return t % [int(ceil(step_t))]
+		6:
+			return t % [LIGHT_COST]
+	return t
+
+func _reward(n: int, msg: String) -> void:
+	coins += n
+	_toast("%s +%d ₽" % [msg, n])
+	_save()
+
+func _start_dlg(key: String, after := Callable()) -> void:
+	dlg = (DLG[key] as Array).duplicate()
+	dlg_i = 0
+	dlg_after = after
+	stick_id = -1
+	stick_vec = Vector2.ZERO
+
+func _dlg_next() -> void:
+	dlg_i += 1
+	if dlg_i >= dlg.size():
+		dlg = []
+		var cb := dlg_after
+		dlg_after = Callable()
+		if cb.is_valid():
+			cb.call()
+
+func _talk(id: String) -> void:
+	if story == 0 and id == "lyuda":
+		_set_step(1)
+		_start_dlg("prolog")
+	elif story == 1 and id == "gosha":
+		_set_step(2)
+		_start_dlg("gosha1")
+	elif story == 3 and id == "gosha":
+		_set_step(4)
+		_start_dlg("gosha2")
+	elif story == 7 and id == "kesha":
+		_set_step(8)
+		_start_dlg("kesha1", func(): panel = "shop")
+	elif story == 9 and id == "gosha":
+		_set_step(10)
+		_start_dlg("gosha3")
+	elif story == 11 and id == "gosha":
+		_reward(300, "Премия от дяди Гоши!")
+		_set_step(12)
+		_start_dlg("gosha4")
+	elif id == "kesha":
+		_start_dlg("kesha_hi", func(): panel = "shop")
+	else:
+		_start_dlg("hi_" + id)
+
+func _act_update() -> void:
+	act_id = ""
+	act_label = ""
+	if state != "play" or dlg.size() > 0 or panel != "" or popup or player == null:
+		return
+	var pp := player.global_position
+	if story == 5 and _flat_dist(pp, CAR_POS) < 4.5:
+		act_id = "wash"
+		act_label = "Мыть"
+	elif story == 6 and _flat_dist(pp, DOOR_POS) < 3.5:
+		act_id = "pay"
+		act_label = "Свет"
+	else:
+		for id in npcs.keys():
+			var n: Node3D = npcs[id]["node"]
+			if _flat_dist(pp, n.global_position) < 4.0:
+				act_id = "talk:" + str(id)
+				act_label = "Говорить"
+				break
+
+func _act_press() -> void:
+	if act_id == "wash":
+		sp += 1
+		_update_car()
+		if sp >= 14:
+			_reward(300, "Машина блестит!")
+			_set_step(6)
+			_start_dlg("wash_ok")
+	elif act_id == "pay":
+		if coins >= LIGHT_COST:
+			coins -= LIGHT_COST
+			_set_step(7)
+			_start_dlg("light_ok")
+		else:
+			_toast("Не хватает: нужно %d ₽" % LIGHT_COST)
+	elif act_id.begins_with("talk:"):
+		_talk(act_id.substr(5))
+
+func _story_process(d: float) -> void:
+	if dlg.size() > 0 or player == null:
+		return
+	var pp := player.global_position
+	if story == 2:
+		var tp: Vector3 = L_PTS[sp]
+		if _flat_dist(pp, tp) < 3.0:
+			sp += 1
+			if sp >= L_PTS.size():
+				_reward(150, "Листовки розданы!")
+				_set_step(3)
+			else:
+				_toast("Листовка доставлена: %d/%d" % [sp, L_PTS.size()])
+	elif story == 4:
+		step_t -= d
+		if _flat_dist(pp, _npc_pos("lyuda")) < 4.5:
+			_reward(250, "Доставка выполнена!")
+			_set_step(5)
+			_start_dlg("deliver_ok")
+		elif step_t <= 0.0:
+			step_t = 90.0
+			_toast("Пирожки остыли! Время вышло, попробуй ещё раз")
+	elif story == 8 and "wheels" in gear:
+		_set_step(9)
+		_start_dlg("kesha_ok")
+	elif story == 10 and thug != null:
+		step_t -= d
+		_thug_move(d)
+		if _flat_dist(pp, thug.position) < 3.0:
+			_reward(500, "Вор пойман!")
+			_set_step(11)
+			_start_dlg("thug_caught")
+		elif step_t <= 0.0:
+			step_t = 80.0
+			thug.position = THUG_WP[0]
+			thug_wp = 1
+			_toast("Вор ушёл! Он вернулся к рынку, попробуй ещё раз")
+
+func _npcs_update(d: float) -> void:
+	if player == null:
+		return
+	var pp := player.global_position
+	for id in npcs.keys():
+		var e: Dictionary = npcs[id]
+		var n: Node3D = e["node"]
+		var dist := _flat_dist(pp, n.global_position)
+		var vis := dist < 90.0
+		if n.visible != vis:
+			n.visible = vis
+			var an: AnimationPlayer = e["anim"]
+			if an != null:
+				an.active = vis
+		if vis and dist < 7.0:
+			n.rotation.y = lerp_angle(n.rotation.y, atan2(pp.x - n.global_position.x, pp.z - n.global_position.z), minf(1.0, 5.0 * d))
+		elif vis:
+			n.rotation.y = lerp_angle(n.rotation.y, float(e["ry"]), minf(1.0, 3.0 * d))
+	var t: Variant = _story_target()
+	tgt_node.visible = t != null
+	if t != null:
+		tgt_node.global_position = (t as Vector3) + Vector3(0, 6.0, 0)
+
+func _district() -> String:
+	if player == null:
+		return "Липовая"
+	var p := player.global_position
+	if p.x > 52.0:
+		return "Ромашка"
+	if p.x < -28.0 and p.z > 30.0:
+		return "Рынок"
+	return "Липовая"
+
+# ---------------- мини-карта ----------------
+func _mm(p: Vector3) -> Vector2:
+	var rel := p - player.global_position
+	var fw := Vector3(-sin(yaw), 0, -cos(yaw))
+	var rt := Vector3(cos(yaw), 0, -sin(yaw))
+	return Vector2(MM_SIZE * 0.5, MM_SIZE * 0.5) + Vector2(rel.dot(rt), -rel.dot(fw)) * MM_SCALE
+
+func _mm_rect(x0: float, z0: float, x1: float, z1: float, c: Color) -> void:
+	mini.draw_colored_polygon(PackedVector2Array([_mm(Vector3(x0, 0, z0)), _mm(Vector3(x1, 0, z0)), _mm(Vector3(x1, 0, z1)), _mm(Vector3(x0, 0, z1))]), c)
+
+func _mini_draw() -> void:
+	if player == null or state != "play":
+		return
+	mini.draw_rect(Rect2(0, 0, MM_SIZE, MM_SIZE), Color(0.3, 0.5, 0.28))
+	_mm_rect(-100, 10, 140, 14, Color(0.72, 0.72, 0.74))
+	_mm_rect(-100, 26, 140, 30, Color(0.72, 0.72, 0.74))
+	_mm_rect(-100, 15, 140, 25, Color(0.25, 0.25, 0.28))
+	_mm_rect(-15, -13, 15, 10, Color(0.45, 0.62, 0.4))
+	_mm_rect(-9.5, -12.5, 1.5, -5.5, Color(0.8, 0.45, 0.35))
+	_mm_rect(-71, -12.5, -61, -5.5, Color(0.3, 0.35, 0.5))
+	_mm_rect(-70, 30, -30, 58, Color(0.85, 0.8, 0.65))
+	_mm_rect(54, -31, 106, 11, Color(0.6, 0.6, 0.66))
+	for id in npcs.keys():
+		var n: Node3D = npcs[id]["node"]
+		mini.draw_circle(_mm(n.global_position), 4.0, Color(1, 0.6, 0.2))
+	var c := Vector2(MM_SIZE * 0.5, MM_SIZE * 0.5)
+	var t: Variant = _story_target()
+	if t != null:
+		var tp := _mm(t as Vector3)
+		var dv := tp - c
+		var lim := MM_SIZE * 0.5 - 12.0
+		var m := maxf(absf(dv.x), absf(dv.y))
+		if m > lim:
+			dv *= lim / m
+		tp = c + dv
+		mini.draw_circle(tp, 8.0, Color(0.1, 0.1, 0.1))
+		mini.draw_circle(tp, 6.0, Color(1, 0.85, 0.1))
+	mini.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -10), c + Vector2(-7, 7), c + Vector2(0, 3), c + Vector2(7, 7)]), Color(1, 1, 1))
+	mini.draw_rect(Rect2(0, 0, MM_SIZE, MM_SIZE), Color(1, 1, 1, 0.8), false, 3.0)
+
+# ---------------- окна: диалог и магазин ----------------
+func _draw_dialog(s: Vector2) -> void:
+	var r := Rect2(s.x * 0.5 - 520, s.y - 250, 1040, 200)
+	hud.draw_rect(r, Color(0.08, 0.1, 0.18, 0.92), true)
+	hud.draw_rect(r, Color(1, 0.85, 0.3), false, 3.0)
+	var line: Array = dlg[dlg_i]
+	var who := str(line[0])
+	var col := Color(0.6, 0.85, 1) if who == "Саша" else Color(1, 0.85, 0.35)
+	if who != "":
+		_text(who, Vector2(r.position.x + 24, r.position.y + 40), 30, col)
+	hud.draw_multiline_string(font, Vector2(r.position.x + 24, r.position.y + 84), str(line[1]), HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 48, 26, 4, Color.WHITE)
+	_text("нажми, чтобы продолжить >", Vector2(r.end.x - 330, r.end.y - 14), 18, Color(1, 1, 1, 0.6))
+
+func _draw_shop_panel(s: Vector2) -> void:
+	hud.draw_rect(Rect2(Vector2.ZERO, s), Color(0, 0, 0, 0.6))
+	var pr := _pr()
+	hud.draw_rect(pr, Color(0.2, 0.22, 0.32), true)
+	hud.draw_rect(pr, Color(1, 0.85, 0.3), false, 4.0)
+	_text_c("Скейт-шоп Кеши", Vector2(pr.get_center().x, pr.position.y + 40), 38)
+	hud.draw_rect(_pr_close(), Color(0.7, 0.2, 0.2), true)
+	_text_c("Закрыть", _pr_close().get_center(), 20)
+	_text("У тебя: %d ₽" % coins, Vector2(pr.position.x + 24, pr.position.y + 110), 26, Color(1, 0.9, 0.3))
+	for i in range(SHOP.size()):
+		var r := _pr_row(i)
+		hud.draw_rect(r, Color(0.28, 0.3, 0.45), true)
+		var u: Dictionary = SHOP[i]
+		_text(str(u["name"]), Vector2(r.position.x + 14, r.position.y + 26), 24)
+		_text(str(u["desc"]), Vector2(r.position.x + 14, r.position.y + 50), 18, Color(0.8, 0.85, 1))
+		var b := _pr_buy(i)
+		if str(u["id"]) in gear:
+			hud.draw_rect(b, Color(0.25, 0.25, 0.3), true)
+			_text_c("Куплено", b.get_center(), 22)
+		else:
+			hud.draw_rect(b, Color(0.8, 0.6, 0.1) if coins >= int(u["cost"]) else Color(0.4, 0.35, 0.3), true)
+			_text_c("%d ₽" % int(u["cost"]), b.get_center(), 24)
+
+func _shop_press(p: Vector2) -> void:
+	if _pr_close().has_point(p) or not _pr().has_point(p):
+		panel = ""
+		return
+	for i in range(SHOP.size()):
+		if _pr_buy(i).has_point(p):
+			var u: Dictionary = SHOP[i]
+			if str(u["id"]) in gear:
+				return
+			if coins >= int(u["cost"]):
+				coins -= int(u["cost"])
+				gear.append(str(u["id"]))
+				_toast("Куплено: %s" % u["name"])
+				_save()
+			else:
+				_toast("Не хватает ₽")
+
+func _btn_act() -> Vector2:
+	return _vs() - Vector2(130, 410)
 
 # ---------------- ввод ----------------
 func _input(event: InputEvent) -> void:
@@ -874,17 +1475,28 @@ func _on_press(idx: int, p: Vector2) -> void:
 			popup = false
 			_save()
 		return
+	if dlg.size() > 0:
+		_dlg_next()
+		return
 	if panel == "house":
 		_panel_press(p)
+		return
+	if panel == "shop":
+		_shop_press(p)
 		return
 	if _btn_house().has_point(p):
 		panel = "house"
 		return
 	if _btn_tp().has_point(p):
-		_teleport(Vector3(0, 0.5, 6) if _in_park() else Vector3(80, 0.5, 6))
+		var dest: Array = TP[tp_i % TP.size()]
+		_teleport(dest[1])
+		tp_i += 1
 		return
 	if _btn_swap().has_point(p):
 		state = "select"
+		return
+	if act_id != "" and p.distance_to(_btn_act()) < 70:
+		_act_press()
 		return
 	if skating and p.distance_to(_btn_brake()) < 75:
 		brake_id = idx
@@ -951,6 +1563,9 @@ func _do_hit() -> void:
 func _physics_process(d: float) -> void:
 	if state != "play" or model == null:
 		return
+	if dlg.size() > 0:
+		stick_vec = Vector2.ZERO
+		stick_id = -1
 	var mag := stick_vec.length()
 	if skating and mount_t > 0.0:
 		mount_t = maxf(0.0, mount_t - d)
@@ -977,7 +1592,7 @@ func _physics_process(d: float) -> void:
 			var along := hv.dot(fwd)
 			var lat := hv - fwd * along
 			lat = lat.move_toward(Vector3.ZERO, 14.0 * d)
-			var tspd := SKATE_MAX * mag * (0.8 + 0.2 * boost)
+			var tspd := _smax() * mag * (0.8 + 0.2 * boost)
 			if mag > 0.15:
 				if along < tspd:
 					along = move_toward(along, tspd, 6.0 * d)
@@ -985,7 +1600,7 @@ func _physics_process(d: float) -> void:
 					along = move_toward(along, tspd, 0.7 * d)
 			else:
 				along = move_toward(along, 0.0, 1.2 * d)
-			if brake_id != -1:
+			if brake_id != -1 or dlg.size() > 0:
 				along = move_toward(along, 0.0, 18.0 * d)
 				lat = lat.move_toward(Vector3.ZERO, 18.0 * d)
 			hv = fwd * along + lat
@@ -1001,7 +1616,7 @@ func _physics_process(d: float) -> void:
 			vel.y -= GRAVITY * d
 			if mag > 0.15:
 				var hv2 := Vector3(vel.x, 0, vel.z)
-				var want := dir * minf(SKATE_MAX * mag, 8.0)
+				var want := dir * minf(_smax() * mag, 8.0)
 				if hv2.length() < want.length():
 					hv2 = hv2.move_toward(want, 20.0 * d)
 					vel.x = hv2.x
@@ -1022,7 +1637,7 @@ func _physics_process(d: float) -> void:
 		if player.is_on_floor() and mag > 0.15 and mount_t <= 0.0 and not trick_active:
 			if push_t > 0.0:
 				push_t = maxf(0.0, push_t - d)
-			elif skate_speed > 3.0 and skate_speed >= SKATE_MAX * mag * 0.7:
+			elif skate_speed > 3.0 and skate_speed >= _smax() * mag * 0.7:
 				push_cd -= d
 				if push_cd <= 0.0:
 					push_t = 1.1
@@ -1059,7 +1674,7 @@ func _physics_process(d: float) -> void:
 			_play("skate_mount")
 		elif push_t > 0.0:
 			_play("skate_kick")
-		elif mag > 0.25 and skate_speed < SKATE_MAX * mag * 0.7:
+		elif mag > 0.25 and skate_speed < _smax() * mag * 0.7:
 			_play("skate_push")
 		elif mag <= 0.25 and skate_speed < 1.2:
 			_play("skate_stand")
@@ -1092,6 +1707,12 @@ func _process(d: float) -> void:
 		if int(stats["park"]) == 0 and _in_park():
 			stats["park"] = 1
 		_check_quest()
+		_story_process(d)
+		_npcs_update(d)
+		_act_update()
+	mini.visible = state == "play"
+	mini.position = Vector2(_vs().x - MM_SIZE - 20, 84)
+	mini.queue_redraw()
 	if player == null or model == null:
 		return
 	vis_h = lerp_angle(vis_h, heading, minf(1.0, 18.0 * d))
