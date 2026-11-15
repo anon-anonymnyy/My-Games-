@@ -8,7 +8,7 @@ const GRAVITY := 24.0
 const JUMP_V := 8.0
 const STICK_R := 90.0
 const MODEL_SCALE := 1.05
-const SKATE_LIFT := 0.15
+const SKATE_LIFT := 0.12
 const LOOPING := ["idle", "walk", "run", "fall", "skate_ride", "skate_push", "skate_stand"]
 const SAVE_PATH := "user://save.json"
 const TRICKS := [
@@ -110,6 +110,7 @@ func _ready() -> void:
 	_build_player()
 	_build_hud()
 	_build_story()
+	_build_audio()
 	_set_step(story)
 	_apply_upgrades()
 	_check_daily()
@@ -135,6 +136,7 @@ func _load_save() -> void:
 		owned = data.get("owned", [])
 		last_collect = int(data.get("last_collect", 0))
 		story = int(data.get("story", 0))
+		snd_on = bool(data.get("snd", true))
 		gear = data.get("gear", [])
 		var st = data.get("stats", {})
 		if typeof(st) == TYPE_DICTIONARY:
@@ -145,7 +147,7 @@ func _save() -> void:
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f == null:
 		return
-	f.store_string(JSON.stringify({"coins": coins, "streak": streak, "last_day": last_day, "char": char_id, "tricks_open": tricks_open, "quest_i": quest_i, "owned": owned, "last_collect": last_collect, "story": story, "gear": gear, "stats": stats}))
+	f.store_string(JSON.stringify({"coins": coins, "streak": streak, "last_day": last_day, "char": char_id, "tricks_open": tricks_open, "quest_i": quest_i, "owned": owned, "last_collect": last_collect, "story": story, "snd": snd_on, "gear": gear, "stats": stats}))
 
 func _check_daily() -> void:
 	var today := int(Time.get_unix_time_from_system() / 86400.0)
@@ -640,6 +642,8 @@ func _hud_draw() -> void:
 	_text("FPS %d" % Engine.get_frames_per_second(), Vector2(22, 130), 20, Color(1, 1, 1, 0.6))
 	hud.draw_rect(_btn_swap(), Color(0, 0, 0, 0.45), true)
 	_text_c("Сменить", _btn_swap().get_center(), 26)
+	hud.draw_rect(_btn_snd(), Color(0, 0, 0, 0.45), true)
+	_text_c("Звук" if snd_on else "Тихо", _btn_snd().get_center(), 24, Color.WHITE if snd_on else Color(1, 0.6, 0.6))
 	hud.draw_rect(_btn_house(), Color(0.45, 0.3, 0.1, 0.8), true)
 	hud.draw_rect(_btn_house(), Color(1, 1, 1, 0.6), false, 2.0)
 	_text_c("Дом  +%d ₽" % _pending_income(), _btn_house().get_center(), 24)
@@ -670,8 +674,7 @@ func _hud_draw() -> void:
 		_text_c("Тормоз", _btn_brake(), 22)
 		_btn_draw(_btn_trick(), 52, Color(0.35, 0.2, 0.55, 0.7))
 		_text_c("Трюк", _btn_trick(), 24)
-		_btn_draw(_btn_cycle(), 46, Color(0.15, 0.2, 0.35, 0.55))
-		_text_c(_trick_name(), _btn_cycle(), 16)
+		_text_c("след.: " + _trick_name(), _btn_trick() + Vector2(0, 74), 16, Color(1, 1, 1, 0.8))
 	if act_id != "":
 		_btn_draw(_btn_act(), 56, Color(0.2, 0.6, 0.3, 0.8))
 		_text_c(act_label, _btn_act(), 22)
@@ -769,6 +772,7 @@ func _panel_press(p: Vector2) -> void:
 				owned.append(i)
 				_apply_upgrades()
 				_toast("Куплено: %s" % UPGRADES[i]["name"])
+				_sfx("good")
 				_save()
 			else:
 				_toast("Не хватает ₽ или нужно предыдущее улучшение")
@@ -819,6 +823,7 @@ func _check_quest() -> void:
 			msg += "  Новый трюк: %s" % _trick_of(u)["name"]
 		quest_i += 1
 		_toast(msg)
+		_sfx("good")
 		_save()
 
 func _trick_of(id: String) -> Dictionary:
@@ -838,6 +843,7 @@ func _do_trick() -> void:
 	if trick_sel >= tricks_open.size():
 		trick_sel = 0
 	trick_def = _trick_of(str(tricks_open[trick_sel]))
+	trick_sel = (trick_sel + 1) % tricks_open.size()
 	trick_active = true
 	trick_dur = 0.5
 	trick_t = trick_dur
@@ -849,6 +855,7 @@ func _reset_trick() -> void:
 		board.rotation = Vector3.ZERO
 
 func _on_land() -> void:
+	_sfx("land")
 	if trick_active and trick_t < 0.25:
 		trick_pending = int(trick_def["pts"])
 	if trick_pending > 0 and "grip" in gear:
@@ -859,6 +866,7 @@ func _on_land() -> void:
 		var bonus := maxi(trick_pending / 50, 1)
 		coins += bonus
 		_toast("%s! +%d очков, +%d ₽" % [trick_def["name"], trick_pending, bonus])
+		_sfx("good")
 		_save()
 	elif trick_active:
 		_toast("Не докрутил трюк")
@@ -1190,6 +1198,7 @@ func _obj_text() -> String:
 func _reward(n: int, msg: String) -> void:
 	coins += n
 	_toast("%s +%d ₽" % [msg, n])
+	_sfx("good")
 	_save()
 
 func _start_dlg(key: String, after := Callable()) -> void:
@@ -1384,7 +1393,7 @@ func _mini_draw() -> void:
 
 # ---------------- окна: диалог и магазин ----------------
 func _draw_dialog(s: Vector2) -> void:
-	var r := Rect2(s.x * 0.5 - 520, s.y - 250, 1040, 200)
+	var r := _dlg_rect()
 	hud.draw_rect(r, Color(0.08, 0.1, 0.18, 0.92), true)
 	hud.draw_rect(r, Color(1, 0.85, 0.3), false, 3.0)
 	var line: Array = dlg[dlg_i]
@@ -1393,7 +1402,9 @@ func _draw_dialog(s: Vector2) -> void:
 	if who != "":
 		_text(who, Vector2(r.position.x + 24, r.position.y + 40), 30, col)
 	hud.draw_multiline_string(font, Vector2(r.position.x + 24, r.position.y + 84), str(line[1]), HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 48, 26, 4, Color.WHITE)
-	_text("нажми, чтобы продолжить >", Vector2(r.end.x - 330, r.end.y - 14), 18, Color(1, 1, 1, 0.6))
+	hud.draw_rect(_btn_dlg(), Color(0.25, 0.6, 0.3), true)
+	hud.draw_rect(_btn_dlg(), Color(1, 1, 1, 0.7), false, 2.0)
+	_text_c("Дальше" if dlg_i < dlg.size() - 1 else "Закрыть", _btn_dlg().get_center(), 26)
 
 func _draw_shop_panel(s: Vector2) -> void:
 	hud.draw_rect(Rect2(Vector2.ZERO, s), Color(0, 0, 0, 0.6))
@@ -1431,12 +1442,167 @@ func _shop_press(p: Vector2) -> void:
 				coins -= int(u["cost"])
 				gear.append(str(u["id"]))
 				_toast("Куплено: %s" % u["name"])
+				_sfx("good")
 				_save()
 			else:
 				_toast("Не хватает ₽")
+				_sfx("bad")
 
 func _btn_act() -> Vector2:
 	return _vs() - Vector2(130, 410)
+
+# ---------------- звук (всё синтезируется кодом, файлов не нужно) ----------------
+const SR := 22050
+var snd: Dictionary = {}
+var snd_on := true
+var sfx_pl: Array = []
+var sfx_i := 0
+var roll_pl: AudioStreamPlayer
+var music_pl: AudioStreamPlayer
+
+func _wav(s: PackedFloat32Array, rate: int, loop := false) -> AudioStreamWAV:
+	var w := AudioStreamWAV.new()
+	w.format = AudioStreamWAV.FORMAT_16_BITS
+	w.mix_rate = rate
+	w.stereo = false
+	var b := PackedByteArray()
+	b.resize(s.size() * 2)
+	for i in range(s.size()):
+		b.encode_s16(i * 2, int(clampf(s[i], -1.0, 1.0) * 32767.0))
+	w.data = b
+	if loop:
+		w.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		w.loop_begin = 0
+		w.loop_end = s.size()
+	return w
+
+func _notes(freqs: Array, note_len: float, vol: float, sq: bool) -> PackedFloat32Array:
+	var n := int(note_len * SR)
+	var out := PackedFloat32Array()
+	out.resize(n * freqs.size())
+	for k in range(freqs.size()):
+		var f: float = freqs[k]
+		for i in range(n):
+			var t := float(i) / float(SR)
+			var ph := fposmod(f * t, 1.0)
+			var w := (1.0 if ph < 0.5 else -1.0) if sq else sin(TAU * ph)
+			var env := exp(-4.0 * float(i) / float(n)) * minf(1.0, float(i) / 80.0)
+			out[k * n + i] = w * vol * env
+	return out
+
+func _sweep(f0: float, f1: float, dur: float, vol: float) -> PackedFloat32Array:
+	var n := int(dur * SR)
+	var out := PackedFloat32Array()
+	out.resize(n)
+	var ph := 0.0
+	for i in range(n):
+		var u := float(i) / float(n)
+		ph += lerpf(f0, f1, u) / float(SR)
+		out[i] = sin(TAU * ph) * vol * (1.0 - u)
+	return out
+
+func _noise(dur: float, vol: float, decay: float, lp: float) -> PackedFloat32Array:
+	var n := int(dur * SR)
+	var out := PackedFloat32Array()
+	out.resize(n)
+	var y := 0.0
+	for i in range(n):
+		y += lp * (randf_range(-1.0, 1.0) - y)
+		out[i] = y * vol * exp(-decay * float(i) / float(n))
+	return out
+
+func _mf(m: float) -> float:
+	return 440.0 * pow(2.0, (m - 69.0) / 12.0)
+
+func _make_music() -> AudioStreamWAV:
+	var rate := 11025
+	var beat := 0.6
+	var roots := [48.0, 45.0, 41.0, 43.0]
+	var minor := [false, true, false, false]
+	var pat := [0, 1, 2, 1, 2, 1, 0, 1]
+	var total := int(16.0 * beat * float(rate))
+	var out := PackedFloat32Array()
+	out.resize(total)
+	for ch in range(4):
+		var r: float = roots[ch]
+		var tri: Array = [0.0, 3.0 if minor[ch] else 4.0, 7.0]
+		for b in range(4):
+			var bf := _mf(r)
+			var start := int((float(ch * 4 + b) * beat) * float(rate))
+			var len := int(beat * float(rate))
+			for i in range(len):
+				var t := float(i) / float(rate)
+				var ph := fposmod(bf * t, 1.0)
+				var w := 4.0 * absf(ph - 0.5) - 1.0
+				out[start + i] += w * 0.22 * exp(-2.5 * float(i) / float(len))
+		for e in range(8):
+			var mf := _mf(r + 24.0 + float(tri[pat[e]]))
+			var start2 := int((float(ch * 4) * beat + float(e) * beat * 0.5) * float(rate))
+			var len2 := int(beat * 0.5 * float(rate))
+			for i in range(len2):
+				var t2 := float(i) / float(rate)
+				var w2 := 1.0 if fposmod(mf * t2, 1.0) < 0.5 else -1.0
+				out[start2 + i] += w2 * 0.09 * exp(-5.0 * float(i) / float(len2))
+	return _wav(out, rate, true)
+
+func _build_audio() -> void:
+	snd["coin"] = _wav(_notes([988.0, 1319.0], 0.09, 0.35, true), SR)
+	snd["jump"] = _wav(_sweep(260.0, 620.0, 0.16, 0.4), SR)
+	snd["land"] = _wav(_noise(0.14, 0.9, 6.0, 0.12), SR)
+	snd["click"] = _wav(_notes([1100.0], 0.05, 0.35, true), SR)
+	snd["blip"] = _wav(_notes([660.0], 0.06, 0.3, true), SR)
+	snd["good"] = _wav(_notes([523.0, 659.0, 784.0, 1047.0], 0.11, 0.35, false), SR)
+	snd["push"] = _wav(_noise(0.18, 0.7, 4.0, 0.3), SR)
+	snd["bad"] = _wav(_notes([300.0, 220.0], 0.14, 0.35, true), SR)
+	for i in range(5):
+		var p := AudioStreamPlayer.new()
+		p.volume_db = -4.0
+		add_child(p)
+		sfx_pl.append(p)
+	roll_pl = AudioStreamPlayer.new()
+	roll_pl.stream = _wav(_noise(1.0, 0.7, 0.0, 0.12), SR, true)
+	roll_pl.volume_db = -80.0
+	add_child(roll_pl)
+	roll_pl.play()
+	music_pl = AudioStreamPlayer.new()
+	music_pl.stream = _make_music()
+	music_pl.volume_db = -15.0
+	add_child(music_pl)
+	music_pl.play()
+	_snd_apply()
+
+func _snd_apply() -> void:
+	if music_pl != null:
+		music_pl.volume_db = -15.0 if snd_on else -80.0
+
+func _sfx(n: String) -> void:
+	if not snd_on or sfx_pl.is_empty() or not snd.has(n):
+		return
+	var p: AudioStreamPlayer = sfx_pl[sfx_i % sfx_pl.size()]
+	sfx_i += 1
+	p.stream = snd[n]
+	p.play()
+
+func _roll_update() -> void:
+	if roll_pl == null:
+		return
+	var on := snd_on and state == "play" and skating and player != null and player.is_on_floor() and skate_speed > 0.8
+	if on:
+		roll_pl.volume_db = lerpf(-24.0, -8.0, clampf(skate_speed / _smax(), 0.0, 1.0))
+		roll_pl.pitch_scale = 0.7 + skate_speed * 0.04
+	else:
+		roll_pl.volume_db = -80.0
+
+func _btn_snd() -> Rect2:
+	return Rect2(_vs().x - 190 - 120, 20, 100, 60)
+
+func _dlg_rect() -> Rect2:
+	var s := _vs()
+	return Rect2(s.x * 0.5 - 520, s.y - 250, 1040, 200)
+
+func _btn_dlg() -> Rect2:
+	var r := _dlg_rect()
+	return Rect2(r.end.x - 220, r.end.y - 66, 200, 50)
 
 # ---------------- ввод ----------------
 func _input(event: InputEvent) -> void:
@@ -1473,16 +1639,25 @@ func _on_press(idx: int, p: Vector2) -> void:
 		if _btn_claim().has_point(p):
 			coins += popup_reward
 			popup = false
+			_sfx("good")
 			_save()
 		return
 	if dlg.size() > 0:
-		_dlg_next()
+		if _btn_dlg().has_point(p):
+			_sfx("blip")
+			_dlg_next()
 		return
 	if panel == "house":
 		_panel_press(p)
 		return
 	if panel == "shop":
 		_shop_press(p)
+		return
+	if _btn_snd().has_point(p):
+		snd_on = not snd_on
+		_snd_apply()
+		_save()
+		_sfx("click")
 		return
 	if _btn_house().has_point(p):
 		panel = "house"
@@ -1496,6 +1671,7 @@ func _on_press(idx: int, p: Vector2) -> void:
 		state = "select"
 		return
 	if act_id != "" and p.distance_to(_btn_act()) < 70:
+		_sfx("click")
 		_act_press()
 		return
 	if skating and p.distance_to(_btn_brake()) < 75:
@@ -1503,9 +1679,6 @@ func _on_press(idx: int, p: Vector2) -> void:
 		return
 	if skating and p.distance_to(_btn_trick()) < 75:
 		_do_trick()
-		return
-	if skating and p.distance_to(_btn_cycle()) < 65:
-		trick_sel = (trick_sel + 1) % maxi(tricks_open.size(), 1)
 		return
 	if p.distance_to(_btn_jump()) < 85:
 		_do_jump()
@@ -1544,6 +1717,7 @@ func _toggle_skate() -> void:
 func _do_jump() -> void:
 	if player.is_on_floor():
 		vel.y = JUMP_V * (1.15 if skating else 1.0)
+		_sfx("jump")
 		_play("jump_start")
 
 func _do_hit() -> void:
@@ -1641,6 +1815,7 @@ func _physics_process(d: float) -> void:
 				push_cd -= d
 				if push_cd <= 0.0:
 					push_t = 1.1
+					_sfx("push")
 					push_cd = randf_range(3.0, 5.0)
 					boost = 1.0
 		else:
@@ -1689,6 +1864,7 @@ func _physics_process(d: float) -> void:
 
 func _process(d: float) -> void:
 	toast_t = maxf(0.0, toast_t - d)
+	_roll_update()
 	for i in range(coin_nodes.size()):
 		var c: Node3D = coin_nodes[i]
 		if c.visible:
@@ -1696,6 +1872,7 @@ func _process(d: float) -> void:
 			if state == "play" and player != null and c.global_position.distance_to(player.global_position + Vector3(0, 0.9, 0)) < 1.1:
 				c.visible = false
 				coin_respawn[i] = 45.0
+				_sfx("coin")
 				coins += 10
 				stats["coins_got"] = int(stats["coins_got"]) + 1
 				_save()
