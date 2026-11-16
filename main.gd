@@ -28,7 +28,7 @@ const QUESTS := [
 	{"t": "Набери 8000 очков за трюки", "k": "score", "n": 8000, "r": 1000, "u": ""}]
 const UPGRADES := [
 	{"name": "Покрасить забор", "cost": 300, "inc": 30},
-	{"name": "Новая крыша", "cost": 600, "inc": 60},
+	{"name": "Клумбы у дома", "cost": 600, "inc": 60},
 	{"name": "Крыльцо и веранда", "cost": 1200, "inc": 120},
 	{"name": "Мастерская во дворе", "cost": 2500, "inc": 250},
 	{"name": "Своя лавка", "cost": 5000, "inc": 500}]
@@ -279,8 +279,7 @@ func _build_world() -> void:
 		_box(Vector3(i * 10.0, 0.05, 20), Vector3(4, 0.02, 0.25), Color(0.95, 0.95, 0.9), false)
 	_box(Vector3(0, 0.02, 28), Vector3(200, 0.04, 4), Color(0.72, 0.72, 0.74))
 	# дом бабушки и двор
-	var grandma_roof := _house(-4, -9, 11, 7, 4.5, Color(0.93, 0.85, 0.65), Color(0.6, 0.2, 0.15), 1.0)
-	roof_mat = grandma_roof.material_override as StandardMaterial3D
+	_grandma_house()
 	# забор
 	var fc := Color(0.55, 0.38, 0.2)
 	fence_mats.append((_box(Vector3(0, 0.6, -13), Vector3(30, 1.2, 0.15), fc)).get_child(0).material_override)
@@ -339,6 +338,29 @@ func _build_world() -> void:
 		pivot.add_child(mi)
 		add_child(pivot)
 		coin_nodes.append(pivot)
+
+func _grandma_house() -> void:
+	var path := "res://house_sasha.glb"
+	var sc: PackedScene = null
+	if ResourceLoader.exists(path):
+		sc = load(path)
+	if sc == null:
+		var gr := _house(-4, -9, 11, 7, 4.5, Color(0.93, 0.85, 0.65), Color(0.6, 0.2, 0.15), 1.0)
+		roof_mat = gr.material_override as StandardMaterial3D
+		return
+	var m: Node3D = sc.instantiate()
+	m.scale = Vector3.ONE * 9.5
+	m.rotation.y = PI / 2.0
+	m.position = Vector3(-4, 0, -7.65)
+	add_child(m)
+	var sb := StaticBody3D.new()
+	sb.position = Vector3(-4, 4.25, -8.4)
+	var cs := CollisionShape3D.new()
+	var sh := BoxShape3D.new()
+	sh.size = Vector3(8.8, 8.5, 7.1)
+	cs.shape = sh
+	sb.add_child(cs)
+	add_child(sb)
 
 # ---------------- скейт-парк ----------------
 func _in_park() -> bool:
@@ -785,6 +807,11 @@ func _apply_upgrades() -> void:
 				sm.albedo_color = Color(0.25, 0.5, 0.85)
 	if _has(1) and roof_mat != null:
 		roof_mat.albedo_color = Color(0.2, 0.45, 0.55)
+	elif _has(1) and roof_mat == null and not upgrade_nodes.has(1):
+		upgrade_nodes[1] = true
+		var fc := [Color(0.9, 0.3, 0.35), Color(0.95, 0.8, 0.2), Color(0.85, 0.4, 0.8), Color(0.95, 0.6, 0.2)]
+		for k in range(7):
+			_box(Vector3(-8.0 + k * 1.3, 0.15, -2.2), Vector3(1.0, 0.3, 0.6), fc[k % 4], false)
 	if _has(2) and not upgrade_nodes.has(2):
 		upgrade_nodes[2] = _box(Vector3(-4, 0.15, -5.0), Vector3(6, 0.3, 2.4), Color(0.62, 0.42, 0.25))
 		_box(Vector3(-6.6, 1.2, -4.0), Vector3(0.2, 2.4, 0.2), Color(0.95, 0.95, 0.9), false)
@@ -878,7 +905,7 @@ const MM_SIZE := 170.0
 const MM_SCALE := 1.3
 const L_PTS := [Vector3(-60, 0, 13), Vector3(-42, 0, 27), Vector3(-26, 0, 13), Vector3(-10, 0, 27), Vector3(8, 0, 13)]
 const CAR_POS := Vector3(-60, 0, 35)
-const DOOR_POS := Vector3(-4, 0, -3.8)
+const DOOR_POS := Vector3(-4, 0, -3.0)
 const THUG_WP := [Vector3(-47, 0.04, 35.5), Vector3(-47, 0.04, 31.0), Vector3(-38, 0.04, 22.0), Vector3(0, 0.04, 22.0), Vector3(40, 0.04, 22.0), Vector3(40, 0.04, 17.0), Vector3(0, 0.04, 17.0), Vector3(-40, 0.04, 17.0), Vector3(-47, 0.04, 31.0)]
 const TP := [["Двор", Vector3(0, 0.5, 6)], ["Рынок", Vector3(-50, 0.5, 31)], ["Скейт-парк", Vector3(80, 0.5, 6)]]
 const NPC_DEF := {
@@ -1160,8 +1187,6 @@ func _apply_story_vis() -> void:
 	_update_car()
 	if story >= 7 and not lamp_built:
 		lamp_built = true
-		for dx in [-3.3, 3.3]:
-			_glow_box(Vector3(-4.0 + dx, 2.475, -5.4), Vector3(1.3, 1.2, 0.04), Color(1, 0.9, 0.5))
 		_box(Vector3(3.5, 1.4, -3.0), Vector3(0.12, 2.8, 0.12), Color(0.25, 0.25, 0.3), false)
 		_glow_box(Vector3(3.5, 2.9, -3.0), Vector3(0.5, 0.4, 0.5), Color(1, 0.95, 0.6))
 
