@@ -83,7 +83,7 @@ var trick_sel := 0
 var trick_active := false
 var trick_dur := 0.6
 var trick_def: Dictionary = {}
-var stats: Dictionary = {"coins_got": 0, "dist": 0.0, "tricks": 0, "score": 0, "park": 0}
+var stats: Dictionary = {"coins_got": 0, "dist": 0.0, "tricks": 0, "score": 0, "park": 0, "birds": 0}
 var quest_i := 0
 var owned: Array = []
 var last_collect := 0
@@ -111,6 +111,8 @@ func _ready() -> void:
 	_build_hud()
 	_build_story()
 	_build_audio()
+	_build_stones()
+	_build_birds()
 	_set_step(story)
 	_apply_upgrades()
 	_check_daily()
@@ -138,6 +140,8 @@ func _load_save() -> void:
 		story = int(data.get("story", 0))
 		snd_on = bool(data.get("snd", true))
 		gear = data.get("gear", [])
+		stones = int(data.get("stones", 3))
+		balls = int(data.get("balls", 0))
 		var st = data.get("stats", {})
 		if typeof(st) == TYPE_DICTIONARY:
 			for k in stats.keys():
@@ -147,7 +151,7 @@ func _save() -> void:
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f == null:
 		return
-	f.store_string(JSON.stringify({"coins": coins, "streak": streak, "last_day": last_day, "char": char_id, "tricks_open": tricks_open, "quest_i": quest_i, "owned": owned, "last_collect": last_collect, "story": story, "snd": snd_on, "gear": gear, "stats": stats}))
+	f.store_string(JSON.stringify({"coins": coins, "streak": streak, "last_day": last_day, "char": char_id, "tricks_open": tricks_open, "quest_i": quest_i, "owned": owned, "last_collect": last_collect, "story": story, "snd": snd_on, "gear": gear, "stones": stones, "balls": balls, "stats": stats}))
 
 func _check_daily() -> void:
 	var today := int(Time.get_unix_time_from_system() / 86400.0)
@@ -282,16 +286,16 @@ func _build_world() -> void:
 	_grandma_house()
 	# забор
 	var fc := Color(0.55, 0.38, 0.2)
-	fence_mats.append((_box(Vector3(0, 0.6, -13), Vector3(30, 1.2, 0.15), fc)).get_child(0).material_override)
-	fence_mats.append((_box(Vector3(-15, 0.6, -1.5), Vector3(0.15, 1.2, 23), fc)).get_child(0).material_override)
-	fence_mats.append((_box(Vector3(15, 0.6, -1.5), Vector3(0.15, 1.2, 23), fc)).get_child(0).material_override)
+	fence_mats.append((_box(Vector3(0, 0.6, -16.2), Vector3(30, 1.2, 0.15), fc)).get_child(0).material_override)
+	fence_mats.append((_box(Vector3(-15, 0.6, -3.1), Vector3(0.15, 1.2, 26.2), fc)).get_child(0).material_override)
+	fence_mats.append((_box(Vector3(15, 0.6, -3.1), Vector3(0.15, 1.2, 26.2), fc)).get_child(0).material_override)
 	fence_mats.append((_box(Vector3(-8.75, 0.6, 10), Vector3(12.5, 1.2, 0.15), fc)).get_child(0).material_override)
 	fence_mats.append((_box(Vector3(8.75, 0.6, 10), Vector3(12.5, 1.2, 0.15), fc)).get_child(0).material_override)
 	# деревья
 	_tree(-12, 4, 4.5)
 	_tree(11, -6, 5.0)
 	_tree(12, 6, 4.0)
-	_tree(-11, -11, 4.5)
+	_tree(-13.2, -13, 4.5)
 	for i in range(-6, 7):
 		if i % 2 == 0:
 			_tree(i * 14.0, 14.5, 4.0)
@@ -349,15 +353,22 @@ func _grandma_house() -> void:
 		roof_mat = gr.material_override as StandardMaterial3D
 		return
 	var m: Node3D = sc.instantiate()
-	m.scale = Vector3.ONE * 9.5
+	m.scale = Vector3.ONE * 13.5
 	m.rotation.y = PI / 2.0
-	m.position = Vector3(-4, 0, -7.65)
+	m.position = Vector3(-4, 0, -9.1)
 	add_child(m)
+	# корпус, пол крыльца и пандус на ступеньки (невидимые коллайдеры)
+	_col_box(Vector3(-4, 6.0, -10.15), Vector3(12.4, 12.0, 10.1), 0.0)
+	_col_box(Vector3(-1.4, 0.75, -4.03), Vector3(5.4, 1.5, 2.55), 0.0)
+	_col_box(Vector3(-1.4, 0.65, -1.575), Vector3(3.2, 0.2, 2.8), atan2(1.5, 2.35))
+
+func _col_box(pos: Vector3, size: Vector3, rot_x: float) -> void:
 	var sb := StaticBody3D.new()
-	sb.position = Vector3(-4, 4.25, -8.4)
+	sb.position = pos
+	sb.rotation.x = rot_x
 	var cs := CollisionShape3D.new()
 	var sh := BoxShape3D.new()
-	sh.size = Vector3(8.8, 8.5, 7.1)
+	sh.size = size
 	cs.shape = sh
 	sb.add_child(cs)
 	add_child(sb)
@@ -609,6 +620,8 @@ func _btn_trick() -> Vector2:
 	return _vs() - Vector2(300, 270)
 func _btn_cycle() -> Vector2:
 	return _vs() - Vector2(300, 375)
+func _btn_menu() -> Rect2:
+	return Rect2(_vs().x * 0.5 - 34, 20, 68, 46)
 func _btn_house() -> Rect2:
 	return Rect2(_vs().x * 0.5 - 130, 86, 260, 56)
 func _pr() -> Rect2:
@@ -666,12 +679,21 @@ func _hud_draw() -> void:
 	_text_c("Сменить", _btn_swap().get_center(), 26)
 	hud.draw_rect(_btn_snd(), Color(0, 0, 0, 0.45), true)
 	_text_c("Звук" if snd_on else "Тихо", _btn_snd().get_center(), 24, Color.WHITE if snd_on else Color(1, 0.6, 0.6))
-	hud.draw_rect(_btn_house(), Color(0.45, 0.3, 0.1, 0.8), true)
-	hud.draw_rect(_btn_house(), Color(1, 1, 1, 0.6), false, 2.0)
-	_text_c("Дом  +%d ₽" % _pending_income(), _btn_house().get_center(), 24)
-	hud.draw_rect(_btn_tp(), Color(0.15, 0.35, 0.3, 0.8), true)
-	hud.draw_rect(_btn_tp(), Color(1, 1, 1, 0.6), false, 2.0)
-	_text_c("→ " + str((TP[tp_i % TP.size()] as Array)[0]), _btn_tp().get_center(), 22)
+	var mb := _btn_menu()
+	hud.draw_rect(mb, Color(0, 0, 0, 0.5), true)
+	hud.draw_rect(mb, Color(1, 1, 1, 0.6), false, 2.0)
+	var mc := mb.get_center()
+	var dy := -7.0 if menu_open else 7.0
+	hud.draw_colored_polygon(PackedVector2Array([mc + Vector2(-14, -dy * 0.6), mc + Vector2(14, -dy * 0.6), mc + Vector2(0, dy * 0.9)]), Color(1, 1, 1))
+	if not menu_open and _pending_income() > 0:
+		hud.draw_circle(mb.end - Vector2(6, 40), 7.0, Color(1, 0.6, 0.1))
+	if menu_open:
+		hud.draw_rect(_btn_house(), Color(0.45, 0.3, 0.1, 0.8), true)
+		hud.draw_rect(_btn_house(), Color(1, 1, 1, 0.6), false, 2.0)
+		_text_c("Дом  +%d ₽" % _pending_income(), _btn_house().get_center(), 24)
+		hud.draw_rect(_btn_tp(), Color(0.15, 0.35, 0.3, 0.8), true)
+		hud.draw_rect(_btn_tp(), Color(1, 1, 1, 0.6), false, 2.0)
+		_text_c("→ " + str((TP[tp_i % TP.size()] as Array)[0]), _btn_tp().get_center(), 22)
 	hud.draw_rect(Rect2(20, 148, 340, 100), Color(0, 0, 0, 0.45), true)
 	_text("ЗАДАНИЕ", Vector2(30, 170), 16, Color(1, 0.85, 0.3))
 	hud.draw_multiline_string(font, Vector2(30, 194), _obj_text(), HORIZONTAL_ALIGNMENT_LEFT, 320.0, 20, 3, Color.WHITE)
@@ -690,7 +712,9 @@ func _hud_draw() -> void:
 	_btn_draw(_btn_board(), 52, Color(0.9, 0.65, 0.1, 0.7) if skating else Color(0.15, 0.2, 0.35, 0.55))
 	_text_c("Скейт", _btn_board(), 22)
 	_btn_draw(_btn_hit(), 52, Color(0.7, 0.15, 0.15, 0.6))
-	_text_c("Удар", _btn_hit(), 22)
+	_text_c("Огонь" if aiming else "Удар", _btn_hit(), 22)
+	_draw_sling_hud(s)
+	_text("Птицы: %d" % int(stats["birds"]), Vector2(22, 288), 16, Color(1, 1, 1, 0.7))
 	if skating:
 		_btn_draw(_btn_brake(), 52, Color(0.8, 0.15, 0.15, 0.75) if brake_id != -1 else Color(0.15, 0.2, 0.35, 0.55))
 		_text_c("Тормоз", _btn_brake(), 22)
@@ -811,7 +835,8 @@ func _apply_upgrades() -> void:
 		upgrade_nodes[1] = true
 		var fc := [Color(0.9, 0.3, 0.35), Color(0.95, 0.8, 0.2), Color(0.85, 0.4, 0.8), Color(0.95, 0.6, 0.2)]
 		for k in range(7):
-			_box(Vector3(-8.0 + k * 1.3, 0.15, -2.2), Vector3(1.0, 0.3, 0.6), fc[k % 4], false)
+			var bx := -10.0 + k * 1.3 if k < 4 else 2.2 + (k - 4) * 1.3
+			_box(Vector3(bx, 0.15, -1.0), Vector3(1.0, 0.3, 0.6), fc[k % 4], false)
 	if _has(2) and not upgrade_nodes.has(2):
 		upgrade_nodes[2] = _box(Vector3(-4, 0.15, -5.0), Vector3(6, 0.3, 2.4), Color(0.62, 0.42, 0.25))
 		_box(Vector3(-6.6, 1.2, -4.0), Vector3(0.2, 2.4, 0.2), Color(0.95, 0.95, 0.9), false)
@@ -905,7 +930,7 @@ const MM_SIZE := 170.0
 const MM_SCALE := 1.3
 const L_PTS := [Vector3(-60, 0, 13), Vector3(-42, 0, 27), Vector3(-26, 0, 13), Vector3(-10, 0, 27), Vector3(8, 0, 13)]
 const CAR_POS := Vector3(-60, 0, 35)
-const DOOR_POS := Vector3(-4, 0, -3.0)
+const DOOR_POS := Vector3(-1.3, 0, -1.0)
 const THUG_WP := [Vector3(-47, 0.04, 35.5), Vector3(-47, 0.04, 31.0), Vector3(-38, 0.04, 22.0), Vector3(0, 0.04, 22.0), Vector3(40, 0.04, 22.0), Vector3(40, 0.04, 17.0), Vector3(0, 0.04, 17.0), Vector3(-40, 0.04, 17.0), Vector3(-47, 0.04, 31.0)]
 const TP := [["Двор", Vector3(0, 0.5, 6)], ["Рынок", Vector3(-50, 0.5, 31)], ["Скейт-парк", Vector3(80, 0.5, 6)]]
 const NPC_DEF := {
@@ -915,7 +940,9 @@ const NPC_DEF := {
 const SHOP := [
 	{"id": "wheels", "name": "Колёса", "desc": "+1 к максимальной скорости", "cost": 300},
 	{"id": "bearings", "name": "Подшипники", "desc": "+1,5 к максимальной скорости", "cost": 700},
-	{"id": "grip", "name": "Грип-лента", "desc": "+20% очков за трюки", "cost": 500}]
+	{"id": "grip", "name": "Грип-лента", "desc": "+20% очков за трюки", "cost": 500},
+	{"id": "pocket", "name": "Большой карман", "desc": "Камней в кармане до 10 (вместо 7)", "cost": 400},
+	{"id": "balls", "name": "Пульки ×10", "desc": "Металлические шарики: летят дальше и точнее", "cost": 150, "kind": "ammo"}]
 const OBJ := [
 	"Поговори с тётей Людой (она стоит слева от двора)",
 	"Найди дядю Гошу на рынке (кнопка «→ Рынок» вверху)",
@@ -993,6 +1020,7 @@ var act_id := ""
 var act_label := ""
 var mini: Control
 var tp_i := 1
+var menu_open := false
 var thug: Node3D
 var thug_wp := 1
 
@@ -1270,7 +1298,7 @@ func _talk(id: String) -> void:
 func _act_update() -> void:
 	act_id = ""
 	act_label = ""
-	if state != "play" or dlg.size() > 0 or panel != "" or popup or player == null:
+	if state != "play" or dlg.size() > 0 or panel != "" or popup or player == null or aiming:
 		return
 	var pp := player.global_position
 	if story == 5 and _flat_dist(pp, CAR_POS) < 4.5:
@@ -1439,7 +1467,7 @@ func _draw_shop_panel(s: Vector2) -> void:
 	_text_c("Скейт-шоп Кеши", Vector2(pr.get_center().x, pr.position.y + 40), 38)
 	hud.draw_rect(_pr_close(), Color(0.7, 0.2, 0.2), true)
 	_text_c("Закрыть", _pr_close().get_center(), 20)
-	_text("У тебя: %d ₽" % coins, Vector2(pr.position.x + 24, pr.position.y + 110), 26, Color(1, 0.9, 0.3))
+	_text("У тебя: %d ₽   камней %d, пулек %d" % [coins, stones, balls], Vector2(pr.position.x + 24, pr.position.y + 110), 26, Color(1, 0.9, 0.3))
 	for i in range(SHOP.size()):
 		var r := _pr_row(i)
 		hud.draw_rect(r, Color(0.28, 0.3, 0.45), true)
@@ -1447,7 +1475,7 @@ func _draw_shop_panel(s: Vector2) -> void:
 		_text(str(u["name"]), Vector2(r.position.x + 14, r.position.y + 26), 24)
 		_text(str(u["desc"]), Vector2(r.position.x + 14, r.position.y + 50), 18, Color(0.8, 0.85, 1))
 		var b := _pr_buy(i)
-		if str(u["id"]) in gear:
+		if str(u["id"]) in gear and u.get("kind", "") != "ammo":
 			hud.draw_rect(b, Color(0.25, 0.25, 0.3), true)
 			_text_c("Куплено", b.get_center(), 22)
 		else:
@@ -1461,7 +1489,20 @@ func _shop_press(p: Vector2) -> void:
 	for i in range(SHOP.size()):
 		if _pr_buy(i).has_point(p):
 			var u: Dictionary = SHOP[i]
-			if str(u["id"]) in gear:
+			if str(u["id"]) in gear and u.get("kind", "") != "ammo":
+				return
+			if u.get("kind", "") == "ammo":
+				if balls >= 40:
+					_toast("В кармане уже много пулек")
+				elif coins >= int(u["cost"]):
+					coins -= int(u["cost"])
+					balls += 10
+					_toast("Куплено: пульки ×10")
+					_sfx("good")
+					_save()
+				else:
+					_toast("Не хватает ₽")
+					_sfx("bad")
 				return
 			if coins >= int(u["cost"]):
 				coins -= int(u["cost"])
@@ -1594,6 +1635,7 @@ func _build_audio() -> void:
 	music_pl.volume_db = -15.0
 	add_child(music_pl)
 	music_pl.play()
+	_build_bird_audio()
 	_snd_apply()
 
 func _snd_apply() -> void:
@@ -1629,6 +1671,475 @@ func _btn_dlg() -> Rect2:
 	var r := _dlg_rect()
 	return Rect2(r.end.x - 220, r.end.y - 66, 200, 50)
 
+# ---------------- рогатка и птицы (сборка 3) ----------------
+const STONE_SPOTS := [Vector3(-50, 0, 12), Vector3(-30, 0, 13), Vector3(-12, 0, 11), Vector3(6, 0, 13), Vector3(20, 0, 12), Vector3(40, 0, 13),
+	Vector3(-40, 0, 27), Vector3(-20, 0, 28), Vector3(0, 0, 27), Vector3(18, 0, 28), Vector3(36, 0, 27),
+	Vector3(-48, 0, 34.5), Vector3(-60, 0, 36.5), Vector3(-38, 0, 36), Vector3(-66, 0, 50), Vector3(-34, 0, 54), Vector3(-48, 0, 52),
+	Vector3(-12, 0, 6), Vector3(12, 0, -9), Vector3(13, 0, 2), Vector3(-13, 0, -4), Vector3(60, 0, 12), Vector3(70, 0, 14)]
+const BIRD_HOMES := [["crow", Vector3(-56, 0, 47)], ["crow", Vector3(-44, 0, 49)], ["crow", Vector3(-38, 0, 34)],
+	["magpie", Vector3(-62, 0, 34)], ["magpie", Vector3(-30, 0, 13)], ["magpie", Vector3(20, 0, 13)],
+	["sparrow", Vector3(0, 0, 12)], ["sparrow", Vector3(-20, 0, 13)], ["sparrow", Vector3(-45, 0, 27)], ["sparrow", Vector3(-50, 0, 36)],
+	["sparrow", Vector3(-10, 0, 27)], ["sparrow", Vector3(10, 0, 27)], ["sparrow", Vector3(-12, 0, 2)], ["sparrow", Vector3(-60, 0, 13)]]
+var stones := 3
+var balls := 0
+var aiming := false
+var use_balls := false
+var fire_cd := 0.0
+var projs: Array = []
+var birds: Array = []
+var stone_nodes: Array = []
+var stone_respawn: Array = []
+var bird_pl: Array = []
+var bird_pi := 0
+var bird_t := 0.0
+
+func _cap() -> int:
+	return 10 if "pocket" in gear else 7
+
+func _btn_sling() -> Vector2:
+	return _vs() - Vector2(300, 375)
+func _btn_ammo() -> Vector2:
+	return _vs() - Vector2(130, 410)
+
+func _build_bird_audio() -> void:
+	snd["whoosh"] = _wav(_whoosh(), SR)
+	snd["chirp1"] = _wav(_chirp(3200.0, 4600.0, 3), SR)
+	snd["chirp2"] = _wav(_chirp(4200.0, 3000.0, 2), SR)
+	snd["chirp3"] = _wav(_chirp(3600.0, 5000.0, 4), SR)
+	snd["caw"] = _wav(_caw(), SR)
+	snd["pick"] = _wav(_notes([700.0, 900.0], 0.05, 0.3, false), SR)
+	snd["shot"] = _wav(_sweep(900.0, 250.0, 0.12, 0.45), SR)
+	for i in range(3):
+		var p := AudioStreamPlayer.new()
+		add_child(p)
+		bird_pl.append(p)
+
+func _whoosh() -> PackedFloat32Array:
+	var n := int(0.55 * SR)
+	var out := PackedFloat32Array()
+	out.resize(n)
+	var y := 0.0
+	for i in range(n):
+		var u := float(i) / float(n)
+		var env := pow(sin(PI * pow(u, 0.6)), 1.5)
+		y += lerpf(0.03, 0.55, u) * (randf_range(-1.0, 1.0) - y)
+		out[i] = y * env * 1.8
+	return out
+
+func _chirp(f0: float, f1: float, reps: int) -> PackedFloat32Array:
+	var seg := int(0.07 * SR)
+	var gap := int(0.035 * SR)
+	var out := PackedFloat32Array()
+	out.resize((seg + gap) * reps)
+	for r in range(reps):
+		var ph := 0.0
+		for i in range(seg):
+			var u := float(i) / float(seg)
+			ph += (lerpf(f0, f1, u) + sin(u * 30.0) * 120.0) / float(SR)
+			out[r * (seg + gap) + i] = sin(TAU * ph) * 0.35 * sin(PI * u)
+	return out
+
+func _caw() -> PackedFloat32Array:
+	var n := int(0.3 * SR)
+	var out := PackedFloat32Array()
+	out.resize(n)
+	var ph := 0.0
+	for i in range(n):
+		var u := float(i) / float(n)
+		ph += lerpf(520.0, 300.0, u) / float(SR)
+		var sq := 1.0 if fposmod(ph, 1.0) < 0.5 else -1.0
+		out[i] = (sq * 0.22 + randf_range(-1.0, 1.0) * 0.15) * sqrt(sin(PI * u))
+	return out
+
+func _bird_snd(nm: String, pos: Vector3) -> void:
+	if not snd_on or player == null or bird_pl.is_empty():
+		return
+	var dist := _flat_dist(player.global_position, pos)
+	if dist > 28.0:
+		return
+	var p: AudioStreamPlayer = bird_pl[bird_pi % bird_pl.size()]
+	bird_pi += 1
+	p.stream = snd[nm]
+	p.volume_db = -3.0 - dist * 0.8
+	p.play()
+
+# ---------- камни на земле ----------
+func _build_stones() -> void:
+	var sm := SphereMesh.new()
+	sm.radius = 0.14
+	sm.height = 0.28
+	sm.radial_segments = 8
+	sm.rings = 4
+	var mat := _mat(Color(0.52, 0.5, 0.48), 0.9)
+	for p in STONE_SPOTS:
+		var mi := MeshInstance3D.new()
+		mi.mesh = sm
+		mi.material_override = mat
+		mi.scale = Vector3(1.0, 0.65, 0.85)
+		mi.position = p + Vector3(0, 0.1, 0)
+		add_child(mi)
+		stone_nodes.append(mi)
+		stone_respawn.append(0.0)
+
+func _stones_update(d: float) -> void:
+	if player == null:
+		return
+	var pp := player.global_position
+	for i in range(stone_nodes.size()):
+		var s: Node3D = stone_nodes[i]
+		if s.visible:
+			if stones < _cap() and _flat_dist(pp, s.global_position) < 1.4:
+				s.visible = false
+				stone_respawn[i] = 40.0
+				stones += 1
+				_sfx("pick")
+		else:
+			stone_respawn[i] = float(stone_respawn[i]) - d
+			if float(stone_respawn[i]) <= 0.0:
+				s.visible = true
+
+# ---------- птицы ----------
+func _bpart(parent: Node3D, mesh: Mesh, pos: Vector3, sc: Vector3, c: Color) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.material_override = _mat(c, 0.9)
+	mi.position = pos
+	mi.scale = sc
+	parent.add_child(mi)
+	return mi
+
+func _make_bird(kind: String, home: Vector3) -> Dictionary:
+	var sz := 1.0
+	var col := Color(0.08, 0.08, 0.1)
+	var belly := col
+	var beak := Color(0.15, 0.12, 0.1)
+	if kind == "magpie":
+		sz = 0.85
+		col = Color(0.05, 0.05, 0.09)
+		belly = Color(0.95, 0.95, 0.95)
+	elif kind == "sparrow":
+		sz = 0.4
+		col = Color(0.55, 0.4, 0.28)
+		belly = Color(0.82, 0.76, 0.66)
+		beak = Color(0.85, 0.65, 0.2)
+	var root := Node3D.new()
+	root.position = home + Vector3(0, 0.04, 0)
+	add_child(root)
+	var pv := Node3D.new()
+	pv.scale = Vector3.ONE * sz
+	root.add_child(pv)
+	var sph := SphereMesh.new()
+	sph.radius = 0.5
+	sph.height = 1.0
+	sph.radial_segments = 10
+	sph.rings = 5
+	_bpart(pv, sph, Vector3(0, 0.3, 0), Vector3(0.3, 0.26, 0.5), col)
+	_bpart(pv, sph, Vector3(0, 0.25, 0.05), Vector3(0.26, 0.2, 0.38), belly)
+	var head := Node3D.new()
+	head.position = Vector3(0, 0.44, 0.25)
+	pv.add_child(head)
+	_bpart(head, sph, Vector3.ZERO, Vector3(0.2, 0.2, 0.2), col)
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.0
+	cm.bottom_radius = 0.045
+	cm.height = 0.17
+	var bk := _bpart(head, cm, Vector3(0, -0.02, 0.13), Vector3.ONE, beak)
+	bk.rotation.x = PI / 2.0
+	var bm := BoxMesh.new()
+	bm.size = Vector3(1, 1, 1)
+	var tail := _bpart(pv, bm, Vector3(0, 0.3, -0.36), Vector3(0.1, 0.03, 0.32), col)
+	tail.rotation.x = -0.25
+	for sx in [-0.06, 0.06]:
+		_bpart(pv, bm, Vector3(sx, 0.1, 0.02), Vector3(0.02, 0.2, 0.02), Color(0.15, 0.12, 0.1))
+	var wl := Node3D.new()
+	wl.position = Vector3(0.14, 0.36, 0.05)
+	pv.add_child(wl)
+	_bpart(wl, bm, Vector3(0.18, 0, 0), Vector3(0.36, 0.02, 0.22), col)
+	var wr := Node3D.new()
+	wr.position = Vector3(-0.14, 0.36, 0.05)
+	pv.add_child(wr)
+	_bpart(wr, bm, Vector3(-0.18, 0, 0), Vector3(0.36, 0.02, 0.22), col)
+	return {"node": root, "pv": pv, "head": head, "wl": wl, "wr": wr, "kind": kind, "home": home, "sz": sz,
+		"state": "idle", "t": randf_range(0.5, 3.0), "tgt": home, "from": home, "p": 0.0, "dur": 1.0, "alive": true,
+		"respawn": 0.0, "die_t": 0.0, "chirp": randf_range(2.0, 6.0), "seed": randf() * 6.0}
+
+func _build_birds() -> void:
+	for h in BIRD_HOMES:
+		birds.append(_make_bird(str(h[0]), h[1]))
+
+func _ground_y() -> float:
+	return 0.04
+
+func _bird_pick_target(b: Dictionary, r: float) -> Vector3:
+	var home: Vector3 = b["home"]
+	var a := randf() * TAU
+	return home + Vector3(cos(a), 0, sin(a)) * randf_range(1.5, r)
+
+func _bird_fly_to(b: Dictionary, to: Vector3, speed: float) -> void:
+	var n: Node3D = b["node"]
+	b["state"] = "fly"
+	b["from"] = n.position
+	b["tgt"] = Vector3(to.x, _ground_y(), to.z)
+	b["p"] = 0.0
+	b["dur"] = maxf(0.6, (b["tgt"] as Vector3).distance_to(n.position) / speed)
+
+func _flee(b: Dictionary, from_pos: Vector3) -> void:
+	var n: Node3D = b["node"]
+	var away := n.position - from_pos
+	away.y = 0.0
+	if away.length() < 0.1:
+		away = Vector3(randf() - 0.5, 0, randf() - 0.5)
+	var to := n.position + away.normalized() * randf_range(8.0, 13.0)
+	_bird_fly_to(b, to, 8.0)
+	_bird_snd("chirp" + str(1 + randi() % 3), n.position)
+
+func _hit_bird(b: Dictionary) -> void:
+	var n: Node3D = b["node"]
+	b["alive"] = false
+	b["die_t"] = 0.25
+	b["respawn"] = randf_range(22.0, 34.0)
+	_poof(n.global_position + Vector3(0, 0.35, 0))
+	_sfx("whoosh")
+	coins += 1
+	stats["birds"] = int(stats["birds"]) + 1
+	_toast("Вжух! +1 очко, +1 ₽")
+	_save()
+
+func _poof(pos: Vector3) -> void:
+	var p := CPUParticles3D.new()
+	p.position = pos
+	p.amount = 40
+	p.one_shot = true
+	p.explosiveness = 0.95
+	p.lifetime = 1.0
+	var sm := SphereMesh.new()
+	sm.radius = 0.07
+	sm.height = 0.14
+	sm.radial_segments = 6
+	sm.rings = 3
+	var mat := StandardMaterial3D.new()
+	mat.vertex_color_use_as_albedo = true
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	sm.material = mat
+	p.mesh = sm
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	p.emission_sphere_radius = 0.25
+	p.direction = Vector3(1, 0.5, 0.2)
+	p.spread = 55.0
+	p.initial_velocity_min = 2.0
+	p.initial_velocity_max = 5.0
+	p.gravity = Vector3(4.0, 2.5, 1.0)
+	p.damping_min = 1.0
+	p.damping_max = 2.0
+	p.scale_amount_min = 0.6
+	p.scale_amount_max = 1.5
+	var g := Gradient.new()
+	g.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
+	g.colors = PackedColorArray([Color(0.18, 0.18, 0.2, 1.0), Color(0.5, 0.5, 0.55, 0.7), Color(0.8, 0.8, 0.85, 0.0)])
+	p.color_ramp = g
+	add_child(p)
+	p.emitting = true
+	get_tree().create_timer(1.6).timeout.connect(p.queue_free)
+
+func _birds_update(d: float) -> void:
+	if player == null:
+		return
+	bird_t += d
+	var pp := player.global_position
+	for b in birds:
+		var n: Node3D = b["node"]
+		var kind := str(b["kind"])
+		var dist := _flat_dist(pp, n.position)
+		if not bool(b["alive"]):
+			var pv0: Node3D = b["pv"]
+			var dt := float(b["die_t"])
+			if dt > 0.0:
+				dt -= d
+				b["die_t"] = dt
+				pv0.scale = Vector3.ONE * float(b["sz"]) * clampf(dt / 0.25, 0.0, 1.0)
+				if dt <= 0.0:
+					n.visible = false
+			else:
+				b["respawn"] = float(b["respawn"]) - d
+				if float(b["respawn"]) <= 0.0:
+					b["alive"] = true
+					n.position = (b["home"] as Vector3) + Vector3(0, _ground_y(), 0)
+					pv0.scale = Vector3.ONE * float(b["sz"])
+					b["state"] = "idle"
+					b["t"] = 1.0
+					n.visible = true
+			continue
+		if dist > 75.0:
+			n.visible = false
+			continue
+		n.visible = true
+		var wl: Node3D = b["wl"]
+		var wr: Node3D = b["wr"]
+		var head: Node3D = b["head"]
+		var st := str(b["state"])
+		if st == "idle":
+			wl.rotation.z = 0.0
+			wr.rotation.z = 0.0
+			head.rotation.x = maxf(0.0, sin(bird_t * 9.0 + float(b["seed"]))) * 0.6 if fmod(bird_t * 0.5 + float(b["seed"]), 2.0) < 0.7 else 0.0
+			b["t"] = float(b["t"]) - d
+			if float(b["t"]) <= 0.0:
+				if kind != "sparrow" and randf() < 0.35:
+					_bird_fly_to(b, _bird_pick_target(b, 14.0), 6.0)
+				else:
+					b["state"] = "hop"
+					b["tgt"] = _bird_pick_target(b, 7.0)
+		elif st == "hop":
+			var tg: Vector3 = b["tgt"]
+			var dv := tg - n.position
+			dv.y = 0.0
+			if dv.length() < 0.25:
+				b["state"] = "idle"
+				b["t"] = randf_range(1.5, 4.5)
+				n.position.y = _ground_y()
+			else:
+				var sp := 1.2 if kind == "sparrow" else 1.7
+				n.position += dv.normalized() * sp * d
+				n.position.y = _ground_y() + absf(sin(bird_t * 12.0 + float(b["seed"]))) * 0.07
+				n.rotation.y = lerp_angle(n.rotation.y, atan2(dv.x, dv.z), minf(1.0, 8.0 * d))
+		elif st == "fly":
+			b["p"] = float(b["p"]) + d / float(b["dur"])
+			var pr := minf(float(b["p"]), 1.0)
+			var fr: Vector3 = b["from"]
+			var to: Vector3 = b["tgt"]
+			var np := fr.lerp(to, pr)
+			np.y = _ground_y() + sin(pr * PI) * (3.0 if kind != "sparrow" else 2.0)
+			var mv := np - n.position
+			mv.y = 0.0
+			if mv.length() > 0.01:
+				n.rotation.y = lerp_angle(n.rotation.y, atan2(mv.x, mv.z), minf(1.0, 10.0 * d))
+			n.position = np
+			var fl := sin(bird_t * 26.0) * 0.9
+			wl.rotation.z = fl
+			wr.rotation.z = -fl
+			if pr >= 1.0:
+				b["state"] = "idle"
+				b["t"] = randf_range(1.5, 4.0)
+				n.position.y = _ground_y()
+		b["chirp"] = float(b["chirp"]) - d
+		if float(b["chirp"]) <= 0.0:
+			b["chirp"] = randf_range(2.5, 7.0)
+			if kind == "sparrow":
+				_bird_snd("chirp" + str(1 + randi() % 3), n.position)
+			elif randf() < 0.5:
+				_bird_snd("caw", n.position)
+
+# ---------- стрельба ----------
+func _toggle_aim() -> void:
+	if skating:
+		return
+	aiming = not aiming
+	_sfx("click")
+
+func _seg_dist(a: Vector3, b: Vector3, c: Vector3) -> float:
+	var ab := b - a
+	var l2 := ab.length_squared()
+	var t := 0.0
+	if l2 > 0.0001:
+		t = clampf((c - a).dot(ab) / l2, 0.0, 1.0)
+	return (a + ab * t).distance_to(c)
+
+func _fire() -> void:
+	if fire_cd > 0.0 or player == null:
+		return
+	var cnt := balls if use_balls else stones
+	if cnt <= 0:
+		_toast("Нет пулек" if use_balls else "Нет камней: подбери на земле")
+		_sfx("bad")
+		return
+	if use_balls:
+		balls -= 1
+	else:
+		stones -= 1
+	fire_cd = 0.45
+	var cf := -cam.global_transform.basis.z
+	var from := cam.global_position
+	var q := PhysicsRayQueryParameters3D.create(from, from + cf * 60.0)
+	q.exclude = [player.get_rid()]
+	var h := get_world_3d().direct_space_state.intersect_ray(q)
+	var tgt: Vector3 = from + cf * 60.0
+	if not h.is_empty():
+		tgt = h["position"]
+	var fw := Vector3(sin(heading), 0, cos(heading))
+	var origin := player.global_position + Vector3(0, 1.35, 0) + fw * 0.45
+	var dir := (tgt - origin).normalized()
+	var mi := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.06 if use_balls else 0.08
+	sm.height = sm.radius * 2.0
+	sm.radial_segments = 8
+	sm.rings = 4
+	mi.mesh = sm
+	mi.material_override = _mat(Color(0.8, 0.82, 0.88), 0.2) if use_balls else _mat(Color(0.5, 0.48, 0.46), 0.9)
+	mi.position = origin
+	add_child(mi)
+	projs.append({"node": mi, "vel": dir * (52.0 if use_balls else 38.0), "g": 3.0 if use_balls else 7.0, "life": 2.5, "r": 0.9 if use_balls else 0.55})
+	_sfx("shot")
+	_save()
+
+func _proj_update(d: float) -> void:
+	fire_cd = maxf(0.0, fire_cd - d)
+	var space := get_world_3d().direct_space_state
+	var i := projs.size() - 1
+	while i >= 0:
+		var pr: Dictionary = projs[i]
+		var n: Node3D = pr["node"]
+		var v: Vector3 = pr["vel"]
+		v.y -= float(pr["g"]) * d
+		pr["vel"] = v
+		pr["life"] = float(pr["life"]) - d
+		var a := n.global_position
+		var b2 := a + v * d
+		var done := float(pr["life"]) <= 0.0
+		var q := PhysicsRayQueryParameters3D.create(a, b2)
+		q.exclude = [player.get_rid()]
+		var hh := space.intersect_ray(q)
+		var seg_end := b2
+		if not hh.is_empty():
+			seg_end = hh["position"]
+			done = true
+		for bd in birds:
+			var bn: Node3D = bd["node"]
+			if not bool(bd["alive"]) or not bn.visible:
+				continue
+			var c := bn.global_position + Vector3(0, 0.3, 0)
+			var dist := _seg_dist(a, seg_end, c)
+			if str(bd["kind"]) == "sparrow":
+				if dist < 2.2 and str(bd["state"]) != "fly":
+					_flee(bd, a)
+			elif dist < float(pr["r"]):
+				_hit_bird(bd)
+				done = true
+				break
+		n.global_position = seg_end
+		if done:
+			n.queue_free()
+			projs.remove_at(i)
+		i -= 1
+
+func _draw_sling_hud(s: Vector2) -> void:
+	if skating:
+		return
+	var bc := _btn_sling()
+	_btn_draw(bc, 46, Color(0.2, 0.45, 0.25, 0.7) if not aiming else Color(0.7, 0.4, 0.1, 0.8))
+	_text_c("Отбой" if aiming else "Рогатка", bc, 17)
+	_text_c("К %d  П %d" % [stones, balls], bc + Vector2(0, 66), 17, Color(1, 1, 1, 0.9))
+	if aiming:
+		var c := s * 0.5
+		hud.draw_arc(c, 18.0, 0.0, TAU, 28, Color(1, 1, 1, 0.9), 2.5)
+		for a in [0.0, PI * 0.5, PI, PI * 1.5]:
+			var dv := Vector2(cos(a), sin(a))
+			hud.draw_line(c + dv * 12.0, c + dv * 30.0, Color(1, 1, 1, 0.9), 2.5)
+		hud.draw_circle(c, 2.5, Color(1, 0.3, 0.2))
+		var ac := _btn_ammo()
+		_btn_draw(ac, 46, Color(0.25, 0.25, 0.4, 0.75))
+		_text_c("Пулька" if use_balls else "Камень", ac, 17)
+
 # ---------------- ввод ----------------
 func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
@@ -1651,7 +2162,7 @@ func _input(event: InputEvent) -> void:
 			stick_vec = v.limit_length(1.0)
 		elif d.index == look_id:
 			yaw -= d.relative.x * 0.005
-			pitch = clampf(pitch - d.relative.y * 0.005, -1.2, 0.4)
+			pitch = clampf(pitch - d.relative.y * 0.005, -1.2, 0.9 if aiming else 0.4)
 
 func _on_press(idx: int, p: Vector2) -> void:
 	if state == "select":
@@ -1684,13 +2195,19 @@ func _on_press(idx: int, p: Vector2) -> void:
 		_save()
 		_sfx("click")
 		return
-	if _btn_house().has_point(p):
-		panel = "house"
+	if _btn_menu().has_point(p):
+		menu_open = not menu_open
+		_sfx("click")
 		return
-	if _btn_tp().has_point(p):
+	if menu_open and _btn_house().has_point(p):
+		panel = "house"
+		menu_open = false
+		return
+	if menu_open and _btn_tp().has_point(p):
 		var dest: Array = TP[tp_i % TP.size()]
 		_teleport(dest[1])
 		tp_i += 1
+		menu_open = false
 		return
 	if _btn_swap().has_point(p):
 		state = "select"
@@ -1698,6 +2215,16 @@ func _on_press(idx: int, p: Vector2) -> void:
 	if act_id != "" and p.distance_to(_btn_act()) < 70:
 		_sfx("click")
 		_act_press()
+		return
+	if not skating and p.distance_to(_btn_sling()) < 60:
+		_toggle_aim()
+		return
+	if aiming and p.distance_to(_btn_hit()) < 75:
+		_fire()
+		return
+	if aiming and p.distance_to(_btn_ammo()) < 60:
+		use_balls = not use_balls
+		_sfx("click")
 		return
 	if skating and p.distance_to(_btn_brake()) < 75:
 		brake_id = idx
@@ -1723,6 +2250,7 @@ func _on_press(idx: int, p: Vector2) -> void:
 		look_id = idx
 
 func _toggle_skate() -> void:
+	aiming = false
 	skating = not skating
 	skate_speed = 0.0
 	brake_id = -1
@@ -1736,7 +2264,6 @@ func _toggle_skate() -> void:
 	push_t = 0.0
 	push_cd = 2.5
 	boost = 0.0
-	cam.position.z = 3.4 if skating else 2.7
 	cur_anim = ""
 
 func _do_jump() -> void:
@@ -1762,7 +2289,8 @@ func _do_hit() -> void:
 func _physics_process(d: float) -> void:
 	if state != "play" or model == null:
 		return
-	if dlg.size() > 0:
+	_proj_update(d)
+	if dlg.size() > 0 or aiming:
 		stick_vec = Vector2.ZERO
 		stick_id = -1
 	var mag := stick_vec.length()
@@ -1911,12 +2439,16 @@ func _process(d: float) -> void:
 		_check_quest()
 		_story_process(d)
 		_npcs_update(d)
+		_stones_update(d)
+		_birds_update(d)
 		_act_update()
 	mini.visible = state == "play"
 	mini.position = Vector2(_vs().x - MM_SIZE - 20, 84)
 	mini.queue_redraw()
 	if player == null or model == null:
 		return
+	if aiming:
+		heading = lerp_angle(heading, yaw + PI, minf(1.0, 14.0 * d))
 	vis_h = lerp_angle(vis_h, heading, minf(1.0, 18.0 * d))
 	var tgt_up := player.get_floor_normal() if (skating and player.is_on_floor()) else Vector3.UP
 	vis_up = vis_up.lerp(tgt_up, minf(1.0, 12.0 * d)).normalized()
@@ -1950,6 +2482,9 @@ func _process(d: float) -> void:
 				board.rotation = Vector3.ZERO
 		else:
 			board.rotation = Vector3.ZERO
+	var cam_tp := Vector3(0.75, 0.15, 1.9) if aiming else Vector3(0, 0, 3.4 if skating else 2.7)
+	cam.position = cam.position.lerp(cam_tp, minf(1.0, 10.0 * d))
+	cam.fov = lerpf(cam.fov, 55.0 if aiming else 70.0, minf(1.0, 10.0 * d))
 	cam_pivot.rotation = Vector3(pitch, yaw, 0)
 	var ip: Vector3 = prev_pos.lerp(cur_pos, Engine.get_physics_interpolation_fraction())
 	visual.global_position = ip
