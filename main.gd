@@ -27,11 +27,11 @@ const QUESTS := [
 	{"t": "Заедь в скейт-парк (справа по улице)", "k": "park", "n": 1, "r": 200, "u": ""},
 	{"t": "Набери 8000 очков за трюки", "k": "score", "n": 8000, "r": 1000, "u": ""}]
 const UPGRADES := [
-	{"name": "Покрасить забор", "cost": 300, "inc": 30},
-	{"name": "Клумбы у дома", "cost": 600, "inc": 60},
-	{"name": "Лавочка и фонарь", "cost": 1200, "inc": 120},
-	{"name": "Мастерская во дворе", "cost": 2500, "inc": 250},
-	{"name": "Своя лавка", "cost": 5000, "inc": 500}]
+	{"name": "Покрасить забор", "cost": 500, "inc": 30},
+	{"name": "Клумбы у дома", "cost": 1200, "inc": 60},
+	{"name": "Лавочка и фонарь", "cost": 2500, "inc": 120},
+	{"name": "Мастерская во дворе", "cost": 5000, "inc": 250},
+	{"name": "Своя лавка", "cost": 10000, "inc": 500}]
 const MAX_OFFLINE_H := 8.0
 
 var player: CharacterBody3D
@@ -110,6 +110,7 @@ func _ready() -> void:
 	_build_player()
 	_build_hud()
 	_build_story()
+	_build_dojo()
 	_build_audio()
 	_build_stones()
 	_build_birds()
@@ -717,6 +718,7 @@ func _hud_draw() -> void:
 	_btn_draw(_btn_hit(), 52, Color(0.7, 0.15, 0.15, 0.6))
 	_text_c("Огонь" if aiming else "Удар", _btn_hit(), 22)
 	_draw_sling_hud(s)
+	_draw_fight(s)
 	_text("Птицы: %d" % int(stats["birds"]), Vector2(22, 288), 16, Color(1, 1, 1, 0.7))
 	if skating:
 		_btn_draw(_btn_brake(), 52, Color(0.8, 0.15, 0.15, 0.75) if brake_id != -1 else Color(0.15, 0.2, 0.35, 0.55))
@@ -932,24 +934,29 @@ func _on_land() -> void:
 	_reset_trick()
 
 # ---------------- сюжет, NPC, диалоги (сборка 2) ----------------
-const LIGHT_COST := 500
+const LIGHT_COST := 700
+const DOBOK_COST := 600
 const MM_SIZE := 170.0
 const MM_SCALE := 1.3
 const L_PTS := [Vector3(-60, 0, 13), Vector3(-42, 0, 27), Vector3(-26, 0, 13), Vector3(-10, 0, 27), Vector3(8, 0, 13)]
 const CAR_POS := Vector3(-60, 0, 35)
 const DOOR_POS := Vector3(-1.3, 0, -1.0)
 const THUG_WP := [Vector3(-47, 0.04, 35.5), Vector3(-47, 0.04, 31.0), Vector3(-38, 0.04, 22.0), Vector3(0, 0.04, 22.0), Vector3(40, 0.04, 22.0), Vector3(40, 0.04, 17.0), Vector3(0, 0.04, 17.0), Vector3(-40, 0.04, 17.0), Vector3(-47, 0.04, 31.0)]
-const TP := [["Двор", Vector3(0, 0.5, 6)], ["Рынок", Vector3(-50, 0.5, 31)], ["Скейт-парк", Vector3(80, 0.5, 6)]]
+const TP := [["Двор", Vector3(0, 0.5, 6)], ["Рынок", Vector3(-50, 0.5, 31)], ["Скейт-парк", Vector3(80, 0.5, 6)], ["Зал Пака", Vector3(33, 0.5, 2)]]
+const DOJO := Vector3(33, 0, -9)
+const BAG_POS := Vector3(36.8, 0, -3.2)
+const SPAR_START := Vector3(41, 0.04, 6)
 const NPC_DEF := {
 	"lyuda": {"file": "npc_granny", "name": "Тётя Люда", "pos": Vector3(-22, 0, -3), "ry": 0.0},
 	"gosha": {"file": "npc_shopkeeper", "name": "Дядя Гоша", "pos": Vector3(-50, 0, 41.6), "ry": PI},
-	"kesha": {"file": "npc_mechanic", "name": "Кеша", "pos": Vector3(-66, 0, -3), "ry": 0.0}}
+	"kesha": {"file": "npc_mechanic", "name": "Кеша", "pos": Vector3(-66, 0, -3), "ry": 0.0},
+	"pak": {"file": "npc_sensei", "name": "Тренер Пак", "pos": Vector3(31, 0, -3.2), "ry": 0.0}}
 const SHOP := [
-	{"id": "wheels", "name": "Колёса", "desc": "+1 к максимальной скорости", "cost": 300},
-	{"id": "bearings", "name": "Подшипники", "desc": "+1,5 к максимальной скорости", "cost": 700},
-	{"id": "grip", "name": "Грип-лента", "desc": "+20% очков за трюки", "cost": 500},
-	{"id": "pocket", "name": "Большой карман", "desc": "Камней в кармане до 10 (вместо 7)", "cost": 400},
-	{"id": "balls", "name": "Пульки ×10", "desc": "Металлические шарики: летят дальше и точнее", "cost": 150, "kind": "ammo"}]
+	{"id": "wheels", "name": "Колёса", "desc": "+1 к максимальной скорости", "cost": 500},
+	{"id": "bearings", "name": "Подшипники", "desc": "+1,5 к максимальной скорости", "cost": 1500},
+	{"id": "grip", "name": "Грип-лента", "desc": "+20% очков за трюки", "cost": 1000},
+	{"id": "pocket", "name": "Большой карман", "desc": "Камней в кармане до 10 (вместо 7)", "cost": 700},
+	{"id": "balls", "name": "Пульки ×10", "desc": "Металлические шарики: летят дальше и точнее", "cost": 200, "kind": "ammo"}]
 const OBJ := [
 	"Поговори с тётей Людой (она стоит слева от двора)",
 	"Найди дядю Гошу на рынке (кнопка «→ Рынок» вверху)",
@@ -959,11 +966,16 @@ const OBJ := [
 	"Помой машину дяди Гоши на рынке (%d/14)",
 	"Заплати за свет: %d ₽ у двери бабушкиного дома",
 	"Сходи к Кеше в скейт-шоп (дом далеко слева)",
-	"Купи колёса у Кеши (300 ₽)",
+	"Купи колёса у Кеши (500 ₽)",
 	"Беги к дяде Гоше: на рынке беда!",
 	"Догони вора с кассой! Осталось %d с",
 	"Вернись к дяде Гоше с кассой",
-	"Сборка 2 пройдена! Копи деньги, улучшай дом, катайся"]
+	"Найди тренера Пака: зал тайквондо справа по улице (кнопка «→ Зал Пака»)",
+	"Тренировка: бей мешок кнопкой «Удар» рядом с ним (%d/10)",
+	"Принеси тренеру Паку %d ₽ за форму и абонемент",
+	"Спарринг! Победи подручного: бей «Ударом», отойди, когда он замахнулся",
+	"Вернись к тренеру Паку",
+	"Сборка 4 пройдена! Копи деньги, улучшай дом, катайся, стреляй из рогатки"]
 const DLG := {
 	"prolog": [
 		["Саша", "Щёлк, щёлк… Света нет. Холодильник молчит, чайник молчит. Хоть кто-то в этом доме отдыхает."],
@@ -991,7 +1003,7 @@ const DLG := {
 	"kesha1": [
 		["Кеша", "О, Саша! Это что у тебя? Колёса стёрлись, это не доска, а санки."],
 		["Саша", "Денег мало, но колёса нужны."],
-		["Кеша", "Колёса стоят 300 ₽. Подшипники и грип позже, когда разбогатеешь. Заходи, вот прайс."]],
+		["Кеша", "Колёса стоят 500 ₽. Подшипники и грип позже, когда разбогатеешь. Заходи, вот прайс."]],
 	"kesha_hi": [
 		["Кеша", "Заходи! Смотри, что есть."]],
 	"kesha_ok": [
@@ -1005,8 +1017,28 @@ const DLG := {
 		["Саша", "Передам привет. Кассу несу дяде Гоше."]],
 	"gosha4": [
 		["Дядя Гоша", "Касса на месте! Саша, ты настоящая находка. Вот премия."],
-		["Дядя Гоша", "Хулиганов гонять хорошо, но надо уметь и постоять за себя. Тренер Пак как раз ищет учеников."],
-		["", "Зал тренера Пака и новые задания появятся в следующем обновлении. Пока катайся, копи деньги и улучшай дом."]],
+		["Дядя Гоша", "Хулиганов гонять хорошо, но надо уметь и постоять за себя. Тренер Пак как раз ищет учеников. Его зал справа по улице."]],
+	"pak1": [
+		["Тренер Пак", "О, новенький! Меня зовут Пак. Тайквондо — это не про драки, а про выдержку и уважение."],
+		["Саша", "Мне бы просто научиться постоять за себя."],
+		["Тренер Пак", "Тогда начнём с мешка. Десять ударов, и считай честно. Кнопка «Удар» у тебя справа, подойди к мешку во дворе."]],
+	"pak2": [
+		["Тренер Пак", "Неплохо! Руки есть, ноги тоже. Дальше нужна форма и абонемент. Это 600 ₽."],
+		["Тренер Пак", "Не жадничай. Деньги на хорошее дело всегда возвращаются. Приходи, когда соберёшь."]],
+	"pak_no": [
+		["Тренер Пак", "Пока не хватает. Поработай, собери монеты и приходи. Я никуда не уйду."]],
+	"pak3": [
+		["Тренер Пак", "Вот так. Форма сидит отлично! Теперь спарринг. Слышишь шаги? Это подручный Хмурого, он пришёл за реваншем."],
+		["Саша", "Только без травм, да?"],
+		["Тренер Пак", "Это спорт, а не война. Не лезь на рожон: когда он замахнулся, отступи, а потом бей. Победа, когда он сел и сдался."]],
+	"spar_win": [
+		["Подручный", "Ладно-ладно! Сдаюсь! Ухожу, Хмурому скажу, что тут все сумасшедшие!"],
+		["Тренер Пак", "Вот это выдержка! Подойди ко мне."]],
+	"pak5": [
+		["Тренер Пак", "Не злился, не паниковал, держал дистанцию. Вот это тайквондо. Держи награду за честный бой."],
+		["Тренер Пак", "Дальше будут новые районы, соревнования и приёмы. А пока тренируйся и копи деньги."]],
+	"hi_pak": [
+		["Тренер Пак", "Спина прямая, дыхание ровное, и всё получится. Заходи, когда будет время."]],
 	"hi_gosha": [
 		["Дядя Гоша", "Заходи, Саша! Работы пока нет, но скоро будет. Рынок любит расторопных."]],
 	"hi_lyuda": [
@@ -1205,6 +1237,11 @@ func _set_step(i: int) -> void:
 	elif thug != null:
 		thug.queue_free()
 		thug = null
+	if i == 15:
+		_spawn_spar()
+	elif spar != null:
+		spar.queue_free()
+		spar = null
 	_apply_story_vis()
 	_save()
 
@@ -1227,6 +1264,13 @@ func _apply_story_vis() -> void:
 
 func _story_target() -> Variant:
 	match story:
+		12, 14, 16:
+			return _npc_pos("pak")
+		13:
+			return BAG_POS
+		15:
+			if spar != null:
+				return spar.position
 		0, 4:
 			return _npc_pos("lyuda")
 		1, 3, 9, 11:
@@ -1249,6 +1293,10 @@ func _obj_text() -> String:
 	match story:
 		2, 5:
 			return t % [sp]
+		13:
+			return t % [sp]
+		14:
+			return t % [DOBOK_COST]
 		4, 10:
 			return t % [int(ceil(step_t))]
 		6:
@@ -1290,11 +1338,26 @@ func _talk(id: String) -> void:
 	elif story == 7 and id == "kesha":
 		_set_step(8)
 		_start_dlg("kesha1", func(): panel = "shop")
+	elif story == 12 and id == "pak":
+		_set_step(13)
+		_start_dlg("pak1")
+	elif story == 14 and id == "pak":
+		if coins >= DOBOK_COST:
+			coins -= DOBOK_COST
+			_sfx("good")
+			_set_step(15)
+			_start_dlg("pak3")
+		else:
+			_start_dlg("pak_no")
+	elif story == 16 and id == "pak":
+		_reward(500, "Награда от тренера Пака!")
+		_set_step(17)
+		_start_dlg("pak5")
 	elif story == 9 and id == "gosha":
 		_set_step(10)
 		_start_dlg("gosha3")
 	elif story == 11 and id == "gosha":
-		_reward(300, "Премия от дяди Гоши!")
+		_reward(200, "Премия от дяди Гоши!")
 		_set_step(12)
 		_start_dlg("gosha4")
 	elif id == "kesha":
@@ -1327,7 +1390,7 @@ func _act_press() -> void:
 		sp += 1
 		_update_car()
 		if sp >= 14:
-			_reward(300, "Машина блестит!")
+			_reward(200, "Машина блестит!")
 			_set_step(6)
 			_start_dlg("wash_ok")
 	elif act_id == "pay":
@@ -1349,14 +1412,14 @@ func _story_process(d: float) -> void:
 		if _flat_dist(pp, tp) < 3.0:
 			sp += 1
 			if sp >= L_PTS.size():
-				_reward(150, "Листовки розданы!")
+				_reward(100, "Листовки розданы!")
 				_set_step(3)
 			else:
 				_toast("Листовка доставлена: %d/%d" % [sp, L_PTS.size()])
 	elif story == 4:
 		step_t -= d
 		if _flat_dist(pp, _npc_pos("lyuda")) < 4.5:
-			_reward(250, "Доставка выполнена!")
+			_reward(150, "Доставка выполнена!")
 			_set_step(5)
 			_start_dlg("deliver_ok")
 		elif step_t <= 0.0:
@@ -1369,7 +1432,7 @@ func _story_process(d: float) -> void:
 		step_t -= d
 		_thug_move(d)
 		if _flat_dist(pp, thug.position) < 3.0:
-			_reward(500, "Вор пойман!")
+			_reward(300, "Вор пойман!")
 			_set_step(11)
 			_start_dlg("thug_caught")
 		elif step_t <= 0.0:
@@ -1431,6 +1494,7 @@ func _mini_draw() -> void:
 	_mm_rect(-15, -13, 15, 10, Color(0.45, 0.62, 0.4))
 	_mm_rect(-9.5, -12.5, 1.5, -5.5, Color(0.8, 0.45, 0.35))
 	_mm_rect(-71, -12.5, -61, -5.5, Color(0.3, 0.35, 0.5))
+	_mm_rect(28.5, -12.5, 37.5, -5.5, Color(0.8, 0.3, 0.3))
 	_mm_rect(-70, 30, -30, 58, Color(0.85, 0.8, 0.65))
 	_mm_rect(54, -31, 106, 11, Color(0.6, 0.6, 0.66))
 	for id in npcs.keys():
@@ -2149,9 +2213,20 @@ func _band(n: MeshInstance3D, a: Vector3, b: Vector3) -> void:
 func _sling_update(d: float) -> void:
 	if sling == null:
 		return
-	sling.visible = aiming and not skating
-	if not sling.visible:
+	var fp := aiming and not skating
+	sling.visible = fp
+	if model != null:
+		model.visible = not (fp and cam.position.length() < 0.8)
+	if not fp:
+		if sling.get_parent() != visual:
+			sling.reparent(visual, false)
+			sling.position = Vector3(0.2, 1.3, 0.5)
+			sling.rotation = Vector3.ZERO
 		return
+	if sling.get_parent() != cam:
+		sling.reparent(cam, false)
+		sling.position = Vector3(0.17, -0.2, -0.42)
+		sling.rotation = Vector3(0.25, PI, 0.0)
 	var want := 1.0 if fire_cd < 0.25 else 0.0
 	sling_pull = move_toward(sling_pull, want, (4.0 if want > 0.5 else 30.0) * d)
 	var p := Vector3(0, 0.13, -0.03 - sling_pull * 0.3)
@@ -2196,7 +2271,7 @@ func _fire() -> void:
 	if not h.is_empty():
 		tgt = h["position"]
 	var fw := Vector3(sin(heading), 0, cos(heading))
-	var origin := player.global_position + Vector3(0, 1.35, 0) + fw * 0.45
+	var origin := cam.global_position + cf * 0.5 + Vector3(0, -0.12, 0)
 	var dir := (tgt - origin).normalized()
 	var mi := MeshInstance3D.new()
 	var sm := SphereMesh.new()
@@ -2271,6 +2346,141 @@ func _draw_sling_hud(s: Vector2) -> void:
 		var ac := _btn_ammo()
 		_btn_draw(ac, 46, Color(0.25, 0.25, 0.4, 0.75))
 		_text_c("Пулька" if use_balls else "Камень", ac, 17)
+
+
+# ---------------- зал тайквондо и спарринг ----------------
+var spar: Node3D
+var spar_hp := 50.0
+var php := 100.0
+var spar_cd := 1.5
+var spar_wind := 0.0
+var spar_stun := 0.0
+var bag_pivot: Node3D
+var bag_sway := 0.0
+var bag_t := 0.0
+
+func _build_dojo() -> void:
+	_house(DOJO.x, DOJO.z, 9, 7, 4.5, Color(0.93, 0.9, 0.82), Color(0.65, 0.15, 0.15), 1.0)
+	_label("ТАЙКВОНДО", Vector3(DOJO.x, 5.4, DOJO.z + 3.9), 64, Color(1, 0.9, 0.5))
+	_box(Vector3(BAG_POS.x, 0.03, BAG_POS.z), Vector3(3.6, 0.06, 3.2), Color(0.6, 0.78, 0.5), false)
+	_box(Vector3(BAG_POS.x + 1.8, 1.75, BAG_POS.z), Vector3(0.14, 3.5, 0.14), Color(0.35, 0.22, 0.12), false)
+	_box(Vector3(BAG_POS.x + 0.6, 3.45, BAG_POS.z), Vector3(2.4, 0.14, 0.14), Color(0.35, 0.22, 0.12), false)
+	bag_pivot = Node3D.new()
+	bag_pivot.position = Vector3(BAG_POS.x, 3.4, BAG_POS.z)
+	add_child(bag_pivot)
+	var cm := CapsuleMesh.new()
+	cm.radius = 0.3
+	cm.height = 1.3
+	var bm := MeshInstance3D.new()
+	bm.mesh = cm
+	bm.material_override = _mat(Color(0.75, 0.15, 0.15), 0.7)
+	bm.position = Vector3(0, -1.5, 0)
+	bag_pivot.add_child(bm)
+	var ch := BoxMesh.new()
+	ch.size = Vector3(0.03, 0.8, 0.03)
+	var cmi := MeshInstance3D.new()
+	cmi.mesh = ch
+	cmi.material_override = _mat(Color(0.3, 0.3, 0.33))
+	cmi.position = Vector3(0, -0.4, 0)
+	bag_pivot.add_child(cmi)
+
+func _npc_anim(n: Node3D, a: String) -> void:
+	var an := n.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	if an != null and an.has_animation(a) and an.current_animation != a:
+		an.play(a)
+
+func _spawn_spar() -> void:
+	if spar != null:
+		spar.queue_free()
+	spar = _spawn_npc("npc_thug", "Подручный", SPAR_START, PI, false)
+	spar_hp = 50.0
+	php = 100.0
+	spar_cd = 2.0
+	spar_wind = 0.0
+	spar_stun = 0.0
+
+func _fight_hit() -> void:
+	if player == null:
+		return
+	var pp := player.global_position
+	if story == 13 and _flat_dist(pp, BAG_POS) < 2.8:
+		sp += 1
+		bag_sway = 1.0
+		_sfx("land")
+		if sp >= 10:
+			_reward(200, "Мешок побеждён!")
+			_set_step(14)
+			_start_dlg("pak2")
+		else:
+			_toast("Удар по мешку: %d/10" % sp)
+	elif story == 15 and spar != null and dlg.size() == 0 and _flat_dist(pp, spar.position) < 2.7:
+		var dv := spar.position - pp
+		heading = atan2(dv.x, dv.z)
+		spar_hp -= 10.0 if punch_n % 2 == 1 else 14.0
+		spar_stun = 0.45
+		spar.position += dv.normalized() * 0.7
+		_sfx("whoosh")
+		spar_wind = 0.0
+		if spar_hp <= 0.0:
+			_npc_anim(spar, "fall")
+			_set_step(16)
+			_start_dlg("spar_win")
+		else:
+			_npc_anim(spar, "land")
+
+func _fight_update(d: float) -> void:
+	bag_t += d
+	if bag_pivot != null:
+		bag_sway = maxf(0.0, bag_sway - d * 0.6)
+		bag_pivot.rotation.z = sin(bag_t * 9.0) * bag_sway * 0.35
+	if story != 15 or spar == null or dlg.size() > 0 or player == null:
+		return
+	var pp := player.global_position
+	var dv := pp - spar.position
+	dv.y = 0.0
+	var dist := dv.length()
+	spar.rotation.y = lerp_angle(spar.rotation.y, atan2(dv.x, dv.z), minf(1.0, 8.0 * d))
+	if spar_stun > 0.0:
+		spar_stun -= d
+		return
+	if spar_wind > 0.0:
+		spar_wind -= d
+		if spar_wind <= 0.0:
+			if dist < 2.4:
+				php -= 8.0
+				vel += dv.normalized() * 5.0
+				_sfx("bad")
+				_toast("Подручный попал! Береги дыхание")
+			_npc_anim(spar, "idle")
+			if php <= 0.0:
+				php = 100.0
+				spar_hp = 50.0
+				spar.position = SPAR_START
+				spar_cd = 2.5
+				_toast("Не вышло! Тренер Пак: «Соберись и ещё раз!»")
+		return
+	if dist > 1.8:
+		spar.position += dv.normalized() * 3.4 * d
+		_npc_anim(spar, "run")
+	else:
+		_npc_anim(spar, "idle")
+		spar_cd -= d
+		if spar_cd <= 0.0:
+			spar_cd = 1.6
+			spar_wind = 0.55
+			_npc_anim(spar, "punch" if randi() % 2 == 0 else "kick")
+
+func _draw_fight(s: Vector2) -> void:
+	if story != 15 or spar == null or dlg.size() > 0:
+		return
+	var w := 360.0
+	var x0 := s.x * 0.5 - w * 0.5
+	_text("Подручный", Vector2(x0, 98), 18, Color(1, 0.85, 0.85))
+	hud.draw_rect(Rect2(x0, 104, w, 16), Color(0, 0, 0, 0.6))
+	hud.draw_rect(Rect2(x0, 104, w * clampf(spar_hp / 50.0, 0.0, 1.0), 16), Color(0.85, 0.2, 0.2))
+	_text("Саша", Vector2(x0, 140), 18, Color(0.85, 1, 0.85))
+	hud.draw_rect(Rect2(x0, 146, w, 16), Color(0, 0, 0, 0.6))
+	hud.draw_rect(Rect2(x0, 146, w * clampf(php / 100.0, 0.0, 1.0), 16), Color(0.25, 0.75, 0.3))
 
 # ---------------- ввод ----------------
 func _input(event: InputEvent) -> void:
@@ -2416,6 +2626,7 @@ func _do_hit() -> void:
 		punch_t = 0.7
 		cur_anim = ""
 		_play("kick")
+	_fight_hit()
 
 # ---------------- игровой цикл ----------------
 func _physics_process(d: float) -> void:
@@ -2573,6 +2784,7 @@ func _process(d: float) -> void:
 		_npcs_update(d)
 		_stones_update(d)
 		_birds_update(d)
+		_fight_update(d)
 		_act_update()
 	mini.visible = state == "play"
 	mini.position = Vector2(_vs().x - MM_SIZE - 20, 84)
@@ -2615,9 +2827,9 @@ func _process(d: float) -> void:
 				board.rotation = Vector3.ZERO
 		else:
 			board.rotation = Vector3.ZERO
-	var cam_tp := Vector3(0.75, 0.15, 1.9) if aiming else Vector3(0, 0, 3.4 if skating else 2.7)
+	var cam_tp := Vector3(0.0, -0.05, 0.0) if aiming else Vector3(0, 0, 3.4 if skating else 2.7)
 	cam.position = cam.position.lerp(cam_tp, minf(1.0, 10.0 * d))
-	cam.fov = lerpf(cam.fov, 55.0 if aiming else 70.0, minf(1.0, 10.0 * d))
+	cam.fov = lerpf(cam.fov, 62.0 if aiming else 70.0, minf(1.0, 10.0 * d))
 	cam_pivot.rotation = Vector3(pitch, yaw, 0)
 	var ip: Vector3 = prev_pos.lerp(cur_pos, Engine.get_physics_interpolation_fraction())
 	visual.global_position = ip
