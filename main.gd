@@ -29,7 +29,7 @@ const QUESTS := [
 const UPGRADES := [
 	{"name": "Покрасить забор", "cost": 300, "inc": 30},
 	{"name": "Клумбы у дома", "cost": 600, "inc": 60},
-	{"name": "Крыльцо и веранда", "cost": 1200, "inc": 120},
+	{"name": "Лавочка и фонарь", "cost": 1200, "inc": 120},
 	{"name": "Мастерская во дворе", "cost": 2500, "inc": 250},
 	{"name": "Своя лавка", "cost": 5000, "inc": 500}]
 const MAX_OFFLINE_H := 8.0
@@ -237,6 +237,7 @@ func _tree(x: float, z: float, h := 4.0) -> void:
 	crown.mesh = sm
 	crown.material_override = _mat(Color(0.2, 0.55, 0.2))
 	crown.position = Vector3(x, h * 0.75, z)
+	tree_tops.append(Vector3(x, h * 1.04, z))
 	add_child(crown)
 	var col := StaticBody3D.new()
 	col.position = Vector3(x, h * 0.25, z)
@@ -359,8 +360,9 @@ func _grandma_house() -> void:
 	add_child(m)
 	# корпус, пол крыльца и пандус на ступеньки (невидимые коллайдеры)
 	_col_box(Vector3(-4, 6.0, -10.15), Vector3(12.4, 12.0, 10.1), 0.0)
-	_col_box(Vector3(-1.4, 0.75, -4.03), Vector3(5.4, 1.5, 2.55), 0.0)
-	_col_box(Vector3(-1.4, 0.65, -1.575), Vector3(3.2, 0.2, 2.8), atan2(1.5, 2.35))
+	# пол крыльца на высоте 0.91 и пандус по реальным ступенькам (0.25 / 0.46 / 0.69 / 0.91)
+	_col_box(Vector3(-1.4, 0.455, -4.7), Vector3(5.4, 0.91, 1.2), 0.0)
+	_col_box(Vector3(-1.3, 0.367, -3.25), Vector3(2.8, 0.2, 1.93), atan2(0.91, 1.7))
 
 func _col_box(pos: Vector3, size: Vector3, rot_x: float) -> void:
 	var sb := StaticBody3D.new()
@@ -549,6 +551,7 @@ func _spawn_model(id: String) -> void:
 	model.scale = Vector3(MODEL_SCALE, MODEL_SCALE, MODEL_SCALE)
 	model.position = Vector3(0, MODEL_SCALE, 0)
 	visual.add_child(model)
+	_build_sling()
 	anim = model.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	if anim != null:
 		for n in anim.get_animation_list():
@@ -838,10 +841,14 @@ func _apply_upgrades() -> void:
 			var bx := -10.0 + k * 1.3 if k < 4 else 2.2 + (k - 4) * 1.3
 			_box(Vector3(bx, 0.15, -1.0), Vector3(1.0, 0.3, 0.6), fc[k % 4], false)
 	if _has(2) and not upgrade_nodes.has(2):
-		upgrade_nodes[2] = _box(Vector3(-4, 0.15, -5.0), Vector3(6, 0.3, 2.4), Color(0.62, 0.42, 0.25))
-		_box(Vector3(-6.6, 1.2, -4.0), Vector3(0.2, 2.4, 0.2), Color(0.95, 0.95, 0.9), false)
-		_box(Vector3(-1.4, 1.2, -4.0), Vector3(0.2, 2.4, 0.2), Color(0.95, 0.95, 0.9), false)
-		_box(Vector3(-4, 2.5, -4.6), Vector3(6.4, 0.15, 3.0), Color(0.55, 0.2, 0.15), false)
+		upgrade_nodes[2] = true
+		var wood := Color(0.55, 0.36, 0.2)
+		_box(Vector3(-9.0, 0.5, -3.4), Vector3(2.2, 0.12, 0.6), wood, false)
+		_box(Vector3(-9.0, 0.85, -3.72), Vector3(2.2, 0.5, 0.1), wood, false)
+		_box(Vector3(-9.9, 0.25, -3.4), Vector3(0.12, 0.5, 0.5), Color(0.3, 0.3, 0.33), false)
+		_box(Vector3(-8.1, 0.25, -3.4), Vector3(0.12, 0.5, 0.5), Color(0.3, 0.3, 0.33), false)
+		_box(Vector3(-6.4, 1.6, -3.2), Vector3(0.12, 3.2, 0.12), Color(0.2, 0.2, 0.24), false)
+		_box(Vector3(-6.4, 3.3, -3.2), Vector3(0.5, 0.4, 0.5), Color(1.0, 0.9, 0.5), false)
 	if _has(3) and not upgrade_nodes.has(3):
 		upgrade_nodes[3] = _box(Vector3(10, 1.2, -9), Vector3(4, 2.4, 3), Color(0.55, 0.58, 0.62))
 		_box(Vector3(10, 2.5, -9), Vector3(4.6, 0.2, 3.6), Color(0.3, 0.3, 0.35), false)
@@ -1630,11 +1637,6 @@ func _build_audio() -> void:
 	roll_pl.volume_db = -80.0
 	add_child(roll_pl)
 	roll_pl.play()
-	music_pl = AudioStreamPlayer.new()
-	music_pl.stream = _make_music()
-	music_pl.volume_db = -15.0
-	add_child(music_pl)
-	music_pl.play()
 	_build_bird_audio()
 	_snd_apply()
 
@@ -1676,10 +1678,17 @@ const STONE_SPOTS := [Vector3(-50, 0, 12), Vector3(-30, 0, 13), Vector3(-12, 0, 
 	Vector3(-40, 0, 27), Vector3(-20, 0, 28), Vector3(0, 0, 27), Vector3(18, 0, 28), Vector3(36, 0, 27),
 	Vector3(-48, 0, 34.5), Vector3(-60, 0, 36.5), Vector3(-38, 0, 36), Vector3(-66, 0, 50), Vector3(-34, 0, 54), Vector3(-48, 0, 52),
 	Vector3(-12, 0, 6), Vector3(12, 0, -9), Vector3(13, 0, 2), Vector3(-13, 0, -4), Vector3(60, 0, 12), Vector3(70, 0, 14)]
-const BIRD_HOMES := [["crow", Vector3(-56, 0, 47)], ["crow", Vector3(-44, 0, 49)], ["crow", Vector3(-38, 0, 34)],
-	["magpie", Vector3(-62, 0, 34)], ["magpie", Vector3(-30, 0, 13)], ["magpie", Vector3(20, 0, 13)],
-	["sparrow", Vector3(0, 0, 12)], ["sparrow", Vector3(-20, 0, 13)], ["sparrow", Vector3(-45, 0, 27)], ["sparrow", Vector3(-50, 0, 36)],
-	["sparrow", Vector3(-10, 0, 27)], ["sparrow", Vector3(10, 0, 27)], ["sparrow", Vector3(-12, 0, 2)], ["sparrow", Vector3(-60, 0, 13)]]
+const CROW_SPOTS := [Vector3(-56, 0, 47), Vector3(-44, 0, 49), Vector3(-38, 0, 34), Vector3(-62, 0, 34), Vector3(-30, 0, 13),
+	Vector3(20, 0, 13), Vector3(40, 0, 13), Vector3(60, 0, 12), Vector3(-66, 0, 50), Vector3(30, 0, 27), Vector3(-20, 0, 28)]
+const BIRD_HOMES := [["crow", Vector3(-56, 0, 47)], ["crow", Vector3(20, 0, 13)], ["magpie", Vector3(-38, 0, 34)],
+	["sparrow", Vector3(0, 0, 12)], ["sparrow", Vector3(-45, 0, 27)], ["sparrow", Vector3(-50, 0, 36)],
+	["sparrow", Vector3(10, 0, 27)], ["sparrow", Vector3(-60, 0, 13)]]
+var tree_tops: Array = []
+var sling: Node3D
+var sling_b1: MeshInstance3D
+var sling_b2: MeshInstance3D
+var sling_pouch: MeshInstance3D
+var sling_pull := 0.0
 var stones := 3
 var balls := 0
 var aiming := false
@@ -1698,6 +1707,8 @@ func _cap() -> int:
 
 func _btn_sling() -> Vector2:
 	return _vs() - Vector2(300, 375)
+func _btn_fire2() -> Vector2:
+	return Vector2(130, 470)
 func _btn_ammo() -> Vector2:
 	return _vs() - Vector2(130, 410)
 
@@ -1736,7 +1747,7 @@ func _chirp(f0: float, f1: float, reps: int) -> PackedFloat32Array:
 		for i in range(seg):
 			var u := float(i) / float(seg)
 			ph += (lerpf(f0, f1, u) + sin(u * 30.0) * 120.0) / float(SR)
-			out[r * (seg + gap) + i] = sin(TAU * ph) * 0.35 * sin(PI * u)
+			out[r * (seg + gap) + i] = sin(TAU * ph) * 0.55 * sin(PI * u)
 	return out
 
 func _caw() -> PackedFloat32Array:
@@ -1755,12 +1766,12 @@ func _bird_snd(nm: String, pos: Vector3) -> void:
 	if not snd_on or player == null or bird_pl.is_empty():
 		return
 	var dist := _flat_dist(player.global_position, pos)
-	if dist > 28.0:
+	if dist > 36.0:
 		return
 	var p: AudioStreamPlayer = bird_pl[bird_pi % bird_pl.size()]
 	bird_pi += 1
 	p.stream = snd[nm]
-	p.volume_db = -3.0 - dist * 0.8
+	p.volume_db = 0.0 - dist * 0.6
 	p.play()
 
 # ---------- камни на земле ----------
@@ -1865,23 +1876,37 @@ func _make_bird(kind: String, home: Vector3) -> Dictionary:
 
 func _build_birds() -> void:
 	for h in BIRD_HOMES:
-		birds.append(_make_bird(str(h[0]), h[1]))
+		var b := _make_bird(str(h[0]), h[1])
+		b["gy"] = 0.04
+		birds.append(b)
+	var k := 0
+	for tp in tree_tops:
+		if k >= 8:
+			break
+		k += 1
+		for j in range(2):
+			var hp: Vector3 = tp + Vector3(-0.5 + j * 1.0, 0.0, randf_range(-0.4, 0.4))
+			var b := _make_bird("sparrow", hp)
+			b["gy"] = hp.y
+			b["perch"] = true
+			b["node"].position = hp
+			b["chirp"] = randf_range(0.5, 3.0)
+			birds.append(b)
 
-func _ground_y() -> float:
-	return 0.04
 
 func _bird_pick_target(b: Dictionary, r: float) -> Vector3:
 	var home: Vector3 = b["home"]
 	var a := randf() * TAU
 	return home + Vector3(cos(a), 0, sin(a)) * randf_range(1.5, r)
 
-func _bird_fly_to(b: Dictionary, to: Vector3, speed: float) -> void:
+func _bird_fly_to(b: Dictionary, to: Vector3, speed: float, arc := 3.0) -> void:
 	var n: Node3D = b["node"]
 	b["state"] = "fly"
 	b["from"] = n.position
-	b["tgt"] = Vector3(to.x, _ground_y(), to.z)
+	b["tgt"] = to
+	b["arc"] = arc
 	b["p"] = 0.0
-	b["dur"] = maxf(0.6, (b["tgt"] as Vector3).distance_to(n.position) / speed)
+	b["dur"] = maxf(0.8, to.distance_to(n.position) / speed)
 
 func _flee(b: Dictionary, from_pos: Vector3) -> void:
 	var n: Node3D = b["node"]
@@ -1889,15 +1914,18 @@ func _flee(b: Dictionary, from_pos: Vector3) -> void:
 	away.y = 0.0
 	if away.length() < 0.1:
 		away = Vector3(randf() - 0.5, 0, randf() - 0.5)
-	var to := n.position + away.normalized() * randf_range(8.0, 13.0)
-	_bird_fly_to(b, to, 8.0)
-	_bird_snd("chirp" + str(1 + randi() % 3), n.position)
+	away = away.normalized().rotated(Vector3.UP, randf_range(-0.6, 0.6))
+	var to := n.position + away * randf_range(20.0, 32.0)
+	to.y = 0.04
+	_bird_fly_to(b, to, 9.0, 6.0)
+	b["away_t"] = randf_range(18.0, 30.0)
+	_bird_snd("chirp" + str(1 + randi() % 3) if str(b["kind"]) == "sparrow" else "caw", n.position)
 
 func _hit_bird(b: Dictionary) -> void:
 	var n: Node3D = b["node"]
 	b["alive"] = false
 	b["die_t"] = 0.25
-	b["respawn"] = randf_range(22.0, 34.0)
+	b["respawn"] = randf_range(35.0, 60.0)
 	_poof(n.global_position + Vector3(0, 0.35, 0))
 	_sfx("whoosh")
 	coins += 1
@@ -1947,9 +1975,13 @@ func _birds_update(d: float) -> void:
 		return
 	bird_t += d
 	var pp := player.global_position
+	var cf := -cam.global_transform.basis.z
+	cf.y = 0.0
+	cf = cf.normalized()
 	for b in birds:
 		var n: Node3D = b["node"]
 		var kind := str(b["kind"])
+		var perch := bool(b.get("perch", false))
 		var dist := _flat_dist(pp, n.position)
 		if not bool(b["alive"]):
 			var pv0: Node3D = b["pv"]
@@ -1963,12 +1995,29 @@ func _birds_update(d: float) -> void:
 			else:
 				b["respawn"] = float(b["respawn"]) - d
 				if float(b["respawn"]) <= 0.0:
-					b["alive"] = true
-					n.position = (b["home"] as Vector3) + Vector3(0, _ground_y(), 0)
-					pv0.scale = Vector3.ONE * float(b["sz"])
-					b["state"] = "idle"
-					b["t"] = 1.0
-					n.visible = true
+					var spots: Array = []
+					for sp in CROW_SPOTS:
+						var dd := _flat_dist(pp, sp)
+						var dirp: Vector3 = sp - pp
+						dirp.y = 0.0
+						var infront := dirp.normalized().dot(cf) > 0.2
+						if sp.distance_to(b["home"]) > 5.0 and (dd > 70.0 or (dd > 45.0 and not infront)):
+							spots.append(sp)
+					if spots.is_empty():
+						b["respawn"] = 2.0
+					else:
+						var spot: Vector3 = spots[randi() % spots.size()]
+						var away: Vector3 = spot - pp
+						away.y = 0.0
+						var startp: Vector3 = spot + away.normalized() * 25.0 + Vector3(0, 7.0, 0)
+						b["alive"] = true
+						b["home"] = spot
+						b["gy"] = 0.04
+						n.position = startp
+						pv0.scale = Vector3.ONE * float(b["sz"])
+						n.visible = true
+						_bird_fly_to(b, spot + Vector3(0, 0.04, 0), 7.0, 2.0)
+						b["away_t"] = 0.0
 			continue
 		if dist > 75.0:
 			n.visible = false
@@ -1978,15 +2027,27 @@ func _birds_update(d: float) -> void:
 		var wr: Node3D = b["wr"]
 		var head: Node3D = b["head"]
 		var st := str(b["state"])
+		var scare := 7.0 if perch else (7.0 if kind == "sparrow" else 11.0)
+		if st != "fly" and dist < scare:
+			_flee(b, pp)
+			continue
 		if st == "idle":
 			wl.rotation.z = 0.0
 			wr.rotation.z = 0.0
 			head.rotation.x = maxf(0.0, sin(bird_t * 9.0 + float(b["seed"]))) * 0.6 if fmod(bird_t * 0.5 + float(b["seed"]), 2.0) < 0.7 else 0.0
-			b["t"] = float(b["t"]) - d
-			if float(b["t"]) <= 0.0:
-				if kind != "sparrow" and randf() < 0.35:
-					_bird_fly_to(b, _bird_pick_target(b, 14.0), 6.0)
-				else:
+			var at := float(b.get("away_t", 0.0))
+			if at > 0.0:
+				at -= d
+				b["away_t"] = at
+				if at <= 0.0:
+					var hm: Vector3 = b["home"]
+					if _flat_dist(pp, hm) > 16.0:
+						_bird_fly_to(b, Vector3(hm.x, float(b["gy"]), hm.z), 7.0, 4.0)
+					else:
+						b["away_t"] = 4.0
+			elif not perch:
+				b["t"] = float(b["t"]) - d
+				if float(b["t"]) <= 0.0:
 					b["state"] = "hop"
 					b["tgt"] = _bird_pick_target(b, 7.0)
 		elif st == "hop":
@@ -1996,11 +2057,11 @@ func _birds_update(d: float) -> void:
 			if dv.length() < 0.25:
 				b["state"] = "idle"
 				b["t"] = randf_range(1.5, 4.5)
-				n.position.y = _ground_y()
+				n.position.y = 0.04
 			else:
-				var sp := 1.2 if kind == "sparrow" else 1.7
-				n.position += dv.normalized() * sp * d
-				n.position.y = _ground_y() + absf(sin(bird_t * 12.0 + float(b["seed"]))) * 0.07
+				var sp2 := 1.2 if kind == "sparrow" else 1.7
+				n.position += dv.normalized() * sp2 * d
+				n.position.y = 0.04 + absf(sin(bird_t * 12.0 + float(b["seed"]))) * 0.07
 				n.rotation.y = lerp_angle(n.rotation.y, atan2(dv.x, dv.z), minf(1.0, 8.0 * d))
 		elif st == "fly":
 			b["p"] = float(b["p"]) + d / float(b["dur"])
@@ -2008,7 +2069,7 @@ func _birds_update(d: float) -> void:
 			var fr: Vector3 = b["from"]
 			var to: Vector3 = b["tgt"]
 			var np := fr.lerp(to, pr)
-			np.y = _ground_y() + sin(pr * PI) * (3.0 if kind != "sparrow" else 2.0)
+			np.y = lerpf(fr.y, to.y, pr) + sin(pr * PI) * float(b.get("arc", 3.0))
 			var mv := np - n.position
 			mv.y = 0.0
 			if mv.length() > 0.01:
@@ -2020,16 +2081,84 @@ func _birds_update(d: float) -> void:
 			if pr >= 1.0:
 				b["state"] = "idle"
 				b["t"] = randf_range(1.5, 4.0)
-				n.position.y = _ground_y()
+				n.position = to
 		b["chirp"] = float(b["chirp"]) - d
 		if float(b["chirp"]) <= 0.0:
-			b["chirp"] = randf_range(2.5, 7.0)
 			if kind == "sparrow":
-				_bird_snd("chirp" + str(1 + randi() % 3), n.position)
-			elif randf() < 0.5:
-				_bird_snd("caw", n.position)
+				b["chirp"] = randf_range(1.2, 3.5) if perch else randf_range(2.0, 5.0)
+				if st != "fly" or randf() < 0.5:
+					_bird_snd("chirp" + str(1 + randi() % 3), n.position)
+			else:
+				b["chirp"] = randf_range(5.0, 12.0)
+				if randf() < 0.6:
+					_bird_snd("caw", n.position)
 
 # ---------- стрельба ----------
+func _build_sling() -> void:
+	if sling != null:
+		sling.queue_free()
+	sling = Node3D.new()
+	sling.visible = false
+	sling.position = Vector3(0.2, 1.3, 0.5)
+	visual.add_child(sling)
+	var wood := _mat(Color(0.45, 0.28, 0.14), 0.9)
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.022
+	cm.bottom_radius = 0.026
+	cm.height = 0.16
+	var st := MeshInstance3D.new()
+	st.mesh = cm
+	st.material_override = wood
+	st.position = Vector3(0, -0.04, 0)
+	sling.add_child(st)
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.03, 0.12, 0.03)
+	for sx in [-1.0, 1.0]:
+		var pr := MeshInstance3D.new()
+		pr.mesh = bm
+		pr.material_override = wood
+		pr.position = Vector3(sx * 0.03, 0.08, 0)
+		pr.rotation.z = -sx * 0.4
+		sling.add_child(pr)
+	var rb := BoxMesh.new()
+	rb.size = Vector3(0.012, 0.012, 1.0)
+	var rm := _mat(Color(0.12, 0.1, 0.1), 0.6)
+	sling_b1 = MeshInstance3D.new()
+	sling_b1.mesh = rb
+	sling_b1.material_override = rm
+	sling.add_child(sling_b1)
+	sling_b2 = MeshInstance3D.new()
+	sling_b2.mesh = rb
+	sling_b2.material_override = rm
+	sling.add_child(sling_b2)
+	var pm := BoxMesh.new()
+	pm.size = Vector3(0.05, 0.04, 0.02)
+	sling_pouch = MeshInstance3D.new()
+	sling_pouch.mesh = pm
+	sling_pouch.material_override = _mat(Color(0.35, 0.2, 0.1), 0.9)
+	sling.add_child(sling_pouch)
+
+func _band(n: MeshInstance3D, a: Vector3, b: Vector3) -> void:
+	var dv := b - a
+	var l := dv.length()
+	if l < 0.001:
+		return
+	var up := Vector3.UP if absf(dv.normalized().y) < 0.95 else Vector3.RIGHT
+	n.transform = Transform3D(Basis.looking_at(dv, up).scaled(Vector3(1, 1, l)), (a + b) * 0.5)
+
+func _sling_update(d: float) -> void:
+	if sling == null:
+		return
+	sling.visible = aiming and not skating
+	if not sling.visible:
+		return
+	var want := 1.0 if fire_cd < 0.25 else 0.0
+	sling_pull = move_toward(sling_pull, want, (4.0 if want > 0.5 else 30.0) * d)
+	var p := Vector3(0, 0.13, -0.03 - sling_pull * 0.3)
+	sling_pouch.position = p
+	_band(sling_b1, Vector3(-0.065, 0.14, 0), p)
+	_band(sling_b2, Vector3(0.065, 0.14, 0), p)
+
 func _toggle_aim() -> void:
 	if skating:
 		return
@@ -2057,6 +2186,7 @@ func _fire() -> void:
 	else:
 		stones -= 1
 	fire_cd = 0.45
+	sling_pull = 0.0
 	var cf := -cam.global_transform.basis.z
 	var from := cam.global_position
 	var q := PhysicsRayQueryParameters3D.create(from, from + cf * 60.0)
@@ -2136,6 +2266,8 @@ func _draw_sling_hud(s: Vector2) -> void:
 			var dv := Vector2(cos(a), sin(a))
 			hud.draw_line(c + dv * 12.0, c + dv * 30.0, Color(1, 1, 1, 0.9), 2.5)
 		hud.draw_circle(c, 2.5, Color(1, 0.3, 0.2))
+		_btn_draw(_btn_fire2(), 52, Color(0.7, 0.15, 0.15, 0.6))
+		_text_c("Огонь", _btn_fire2(), 22)
 		var ac := _btn_ammo()
 		_btn_draw(ac, 46, Color(0.25, 0.25, 0.4, 0.75))
 		_text_c("Пулька" if use_balls else "Камень", ac, 17)
@@ -2219,7 +2351,7 @@ func _on_press(idx: int, p: Vector2) -> void:
 	if not skating and p.distance_to(_btn_sling()) < 60:
 		_toggle_aim()
 		return
-	if aiming and p.distance_to(_btn_hit()) < 75:
+	if aiming and (p.distance_to(_btn_hit()) < 75 or p.distance_to(_btn_fire2()) < 75):
 		_fire()
 		return
 	if aiming and p.distance_to(_btn_ammo()) < 60:
@@ -2290,7 +2422,7 @@ func _physics_process(d: float) -> void:
 	if state != "play" or model == null:
 		return
 	_proj_update(d)
-	if dlg.size() > 0 or aiming:
+	if dlg.size() > 0:
 		stick_vec = Vector2.ZERO
 		stick_id = -1
 	var mag := stick_vec.length()
@@ -2305,7 +2437,7 @@ func _physics_process(d: float) -> void:
 			tgt *= 0.25
 		vel.x = move_toward(vel.x, dir.x * tgt, 45.0 * d)
 		vel.z = move_toward(vel.z, dir.z * tgt, 45.0 * d)
-		if mag > 0.1 and punch_t <= 0.0:
+		if mag > 0.1 and punch_t <= 0.0 and not aiming:
 			heading = lerp_angle(heading, atan2(dir.x, dir.z), minf(1.0, 14.0 * d))
 	else:
 		if on_floor:
@@ -2450,6 +2582,7 @@ func _process(d: float) -> void:
 	if aiming:
 		heading = lerp_angle(heading, yaw + PI, minf(1.0, 14.0 * d))
 	vis_h = lerp_angle(vis_h, heading, minf(1.0, 18.0 * d))
+	_sling_update(d)
 	var tgt_up := player.get_floor_normal() if (skating and player.is_on_floor()) else Vector3.UP
 	vis_up = vis_up.lerp(tgt_up, minf(1.0, 12.0 * d)).normalized()
 	var vf := Vector3(sin(vis_h), 0, cos(vis_h))
