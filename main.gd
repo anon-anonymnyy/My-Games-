@@ -111,6 +111,7 @@ func _ready() -> void:
 	_build_hud()
 	_build_story()
 	_build_dojo()
+	_build_poles()
 	_build_audio()
 	_build_stones()
 	_build_birds()
@@ -231,10 +232,25 @@ func _tree(x: float, z: float, h := 4.0) -> void:
 	trunk.material_override = _mat(Color(0.4, 0.27, 0.15))
 	trunk.position = Vector3(x, h * 0.25, z)
 	add_child(trunk)
+	var gv := 0.9 + fposmod(x * 0.37 + z * 0.21, 0.2)
+	for j in range(3):
+		var c2 := MeshInstance3D.new()
+		var s2 := SphereMesh.new()
+		s2.radius = h * 0.27
+		s2.height = h * 0.54
+		s2.radial_segments = 12
+		s2.rings = 6
+		c2.mesh = s2
+		c2.material_override = _mat(Color(0.18 * gv, 0.5 * gv + j * 0.03, 0.17 * gv))
+		var aj := float(j) * 2.1 + x
+		c2.position = Vector3(x + cos(aj) * h * 0.26, h * (0.68 + 0.07 * float(j)), z + sin(aj) * h * 0.26)
+		add_child(c2)
 	var crown := MeshInstance3D.new()
 	var sm := SphereMesh.new()
 	sm.radius = h * 0.4
 	sm.height = h * 0.8
+	sm.radial_segments = 14
+	sm.rings = 7
 	crown.mesh = sm
 	crown.material_override = _mat(Color(0.2, 0.55, 0.2))
 	crown.position = Vector3(x, h * 0.75, z)
@@ -307,9 +323,11 @@ func _build_world() -> void:
 		if i == 0:
 			continue
 		if i != 3 and i != 4 and i != -3:
-			_house(i * 22.0, -9.0, 10, 7, 4.2 + (i % 2) * 0.8, wc[absi(i) % 4], Color(0.35, 0.25, 0.25), 1.0)
+			if not _house_tex(i * 22.0, -9.0, 7.5 + float(absi(i) % 2) * 1.5, 1.0, HUES[(i + 8) % HUES.size()]):
+				_house(i * 22.0, -9.0, 10, 7, 4.2 + (i % 2) * 0.8, wc[absi(i) % 4], Color(0.35, 0.25, 0.25), 1.0)
 		if i != -3 and i != -2:
-			_house(i * 22.0 + 6, 36.0, 10, 7, 5.0, wc[(absi(i) + 1) % 4], Color(0.3, 0.3, 0.38), -1.0)
+			if not _house_tex(i * 22.0 + 6, 36.0, 8.0 + float(absi(i) % 3) * 0.6, -1.0, HUES[(i + 11) % HUES.size()]):
+				_house(i * 22.0 + 6, 36.0, 10, 7, 5.0, wc[(absi(i) + 1) % 4], Color(0.3, 0.3, 0.38), -1.0)
 	_build_market()
 	_build_shop()
 	# скейт-элементы во дворе
@@ -944,7 +962,7 @@ const DOOR_POS := Vector3(-1.3, 0, -1.0)
 const THUG_WP := [Vector3(-47, 0.04, 35.5), Vector3(-47, 0.04, 31.0), Vector3(-38, 0.04, 22.0), Vector3(0, 0.04, 22.0), Vector3(40, 0.04, 22.0), Vector3(40, 0.04, 17.0), Vector3(0, 0.04, 17.0), Vector3(-40, 0.04, 17.0), Vector3(-47, 0.04, 31.0)]
 const TP := [["Двор", Vector3(0, 0.5, 6)], ["Рынок", Vector3(-50, 0.5, 31)], ["Скейт-парк", Vector3(80, 0.5, 6)], ["Зал Пака", Vector3(33, 0.5, 2)]]
 const DOJO := Vector3(33, 0, -9)
-const BAG_POS := Vector3(36.8, 0, -3.2)
+const BAG_POS := Vector3(38.2, 0, -3.2)
 const SPAR_START := Vector3(41, 0.04, 6)
 const NPC_DEF := {
 	"lyuda": {"file": "npc_granny", "name": "Тётя Люда", "pos": Vector3(-22, 0, -3), "ry": 0.0},
@@ -1119,7 +1137,8 @@ func _build_market() -> void:
 			_box(CAR_POS + Vector3(wx, 0.3, wz), Vector3(0.7, 0.6, 0.25), Color(0.1, 0.1, 0.1), false)
 
 func _build_shop() -> void:
-	_house(-66, -9, 10, 7, 4.5, Color(0.3, 0.35, 0.5), Color(0.2, 0.2, 0.25), 1.0)
+	if not _house_tex(-66, -9, 9.0, 1.0, 0.38):
+		_house(-66, -9, 10, 7, 4.5, Color(0.3, 0.35, 0.5), Color(0.2, 0.2, 0.25), 1.0)
 	_label("СКЕЙТ-ШОП КЕШИ", Vector3(-66, 3.7, -5.3), 120, Color(1, 0.85, 0.2), 0.009)
 	var bc := [Color(0.85, 0.25, 0.2), Color(0.2, 0.6, 0.85), Color(0.9, 0.7, 0.15), Color(0.3, 0.7, 0.4)]
 	for k in range(4):
@@ -1494,7 +1513,7 @@ func _mini_draw() -> void:
 	_mm_rect(-15, -13, 15, 10, Color(0.45, 0.62, 0.4))
 	_mm_rect(-9.5, -12.5, 1.5, -5.5, Color(0.8, 0.45, 0.35))
 	_mm_rect(-71, -12.5, -61, -5.5, Color(0.3, 0.35, 0.5))
-	_mm_rect(28.5, -12.5, 37.5, -5.5, Color(0.8, 0.3, 0.3))
+	_mm_rect(29.3, -12.5, 36.7, -5.0, Color(0.8, 0.3, 0.3))
 	_mm_rect(-70, 30, -30, 58, Color(0.85, 0.8, 0.65))
 	_mm_rect(54, -31, 106, 11, Color(0.6, 0.6, 0.66))
 	for id in npcs.keys():
@@ -2360,8 +2379,11 @@ var bag_sway := 0.0
 var bag_t := 0.0
 
 func _build_dojo() -> void:
-	_house(DOJO.x, DOJO.z, 9, 7, 4.5, Color(0.93, 0.9, 0.82), Color(0.65, 0.15, 0.15), 1.0)
-	_label("ТАЙКВОНДО", Vector3(DOJO.x, 5.4, DOJO.z + 3.9), 64, Color(1, 0.9, 0.5))
+	if not _house_tex(DOJO.x, DOJO.z, 8.0, 1.0, -0.17):
+		_house(DOJO.x, DOJO.z, 9, 7, 4.5, Color(0.93, 0.9, 0.82), Color(0.65, 0.15, 0.15), 1.0)
+	_box(Vector3(DOJO.x - 3.8, 1.2, DOJO.z + 5.6), Vector3(0.14, 2.4, 0.14), Color(0.35, 0.22, 0.12), false)
+	_box(Vector3(DOJO.x - 3.8, 2.5, DOJO.z + 5.6), Vector3(2.8, 0.8, 0.1), Color(0.55, 0.12, 0.12), false)
+	_label("ТАЙКВОНДО", Vector3(DOJO.x - 3.8, 2.5, DOJO.z + 5.7), 48, Color(1, 0.9, 0.5))
 	_box(Vector3(BAG_POS.x, 0.03, BAG_POS.z), Vector3(3.6, 0.06, 3.2), Color(0.6, 0.78, 0.5), false)
 	_box(Vector3(BAG_POS.x + 1.8, 1.75, BAG_POS.z), Vector3(0.14, 3.5, 0.14), Color(0.35, 0.22, 0.12), false)
 	_box(Vector3(BAG_POS.x + 0.6, 3.45, BAG_POS.z), Vector3(2.4, 0.14, 0.14), Color(0.35, 0.22, 0.12), false)
@@ -2481,6 +2503,118 @@ func _draw_fight(s: Vector2) -> void:
 	_text("Саша", Vector2(x0, 140), 18, Color(0.85, 1, 0.85))
 	hud.draw_rect(Rect2(x0, 146, w, 16), Color(0, 0, 0, 0.6))
 	hud.draw_rect(Rect2(x0, 146, w * clampf(php / 100.0, 0.0, 1.0), 16), Color(0.25, 0.75, 0.3))
+
+
+# ---------------- дома из 3D-модели, столбы, деревья ----------------
+const HUES := [0.38, -0.17, 0.2, -0.3, -0.08, 0.5, -0.22, 0.3]
+const HOUSE_SHADER := """shader_type spatial;
+uniform sampler2D tex : source_color;
+uniform float hue_shift = 0.0;
+vec3 rgb2hsv(vec3 c) {
+	vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+	vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+	vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+	float d = q.x - min(q.w, q.y);
+	float e = 1.0e-10;
+	return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+}
+vec3 hsv2rgb(vec3 c) {
+	vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+	vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+	return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+}
+void fragment() {
+	vec3 c = texture(tex, UV).rgb;
+	vec3 h = rgb2hsv(c);
+	if (h.x > 0.17 && h.x < 0.5 && h.y > 0.18) {
+		h.x = fract(h.x + hue_shift + 1.0);
+	}
+	ALBEDO = hsv2rgb(h);
+	ROUGHNESS = 0.9;
+}
+"""
+var house_scene: PackedScene
+var house_shader: Shader
+
+func _col_boxr(origin: Vector3, rot_y: float, off: Vector3, size: Vector3, rot_x: float, k: float) -> void:
+	var sb := StaticBody3D.new()
+	var bs := Basis(Vector3.UP, rot_y)
+	sb.position = origin + bs * (off * k)
+	sb.basis = bs * Basis(Vector3.RIGHT, rot_x)
+	var cs := CollisionShape3D.new()
+	var sh := BoxShape3D.new()
+	sh.size = size * k
+	cs.shape = sh
+	sb.add_child(cs)
+	add_child(sb)
+
+func _house_tex(x: float, z: float, sc: float, face_z: float, hue: float) -> bool:
+	if house_scene == null:
+		if not ResourceLoader.exists("res://house_sasha.glb"):
+			return false
+		house_scene = load("res://house_sasha.glb")
+		if house_scene == null:
+			return false
+		house_shader = Shader.new()
+		house_shader.code = HOUSE_SHADER
+	var m: Node3D = house_scene.instantiate()
+	m.scale = Vector3.ONE * sc
+	m.rotation.y = PI / 2.0 if face_z > 0.0 else -PI / 2.0
+	m.position = Vector3(x, 0, z)
+	add_child(m)
+	for mi in m.find_children("*", "MeshInstance3D", true, false):
+		var mesh := mi as MeshInstance3D
+		mesh.visibility_range_end = 120.0
+		if absf(hue) < 0.001:
+			continue
+		for si in range(mesh.mesh.get_surface_count()):
+			var bm := mesh.get_active_material(si) as BaseMaterial3D
+			if bm != null and bm.albedo_texture != null:
+				var sm := ShaderMaterial.new()
+				sm.shader = house_shader
+				sm.set_shader_parameter("tex", bm.albedo_texture)
+				sm.set_shader_parameter("hue_shift", hue)
+				mesh.set_surface_override_material(si, sm)
+	var k := sc / 13.5
+	var ry := 0.0 if face_z > 0.0 else PI
+	var o := Vector3(x, 0, z)
+	_col_boxr(o, ry, Vector3(0, 6.0, -1.05), Vector3(12.4, 12.0, 10.1), 0.0, k)
+	_col_boxr(o, ry, Vector3(2.6, 0.455, 4.4), Vector3(5.4, 0.91, 1.2), 0.0, k)
+	_col_boxr(o, ry, Vector3(2.7, 0.367, 5.85), Vector3(2.8, 0.2, 1.93), atan2(0.91, 1.7), k)
+	return true
+
+func _wire(a: Vector3, b: Vector3, rm: BoxMesh, mat: Material) -> void:
+	var n := MeshInstance3D.new()
+	n.mesh = rm
+	n.material_override = mat
+	add_child(n)
+	_band(n, a, b)
+
+func _build_poles() -> void:
+	var rm := BoxMesh.new()
+	rm.size = Vector3(0.035, 0.035, 1.0)
+	var wm := _mat(Color(0.08, 0.08, 0.1), 0.6)
+	var xs := [-84.0, -56.0, -28.0, 0.0, 28.0, 50.0]
+	var pz := 10.7
+	for x in xs:
+		_box(Vector3(x, 4.2, pz), Vector3(0.26, 8.4, 0.26), Color(0.4, 0.3, 0.2))
+		_box(Vector3(x, 7.6, pz), Vector3(0.14, 0.14, 2.4), Color(0.35, 0.26, 0.18), false)
+		_box(Vector3(x, 7.0, pz), Vector3(0.14, 0.14, 1.8), Color(0.35, 0.26, 0.18), false)
+	for i in range(xs.size() - 1):
+		for dz in [-1.1, 0.0, 1.1]:
+			_wire_sag(Vector3(xs[i], 7.7, pz + dz), Vector3(xs[i + 1], 7.7, pz + dz), 0.9, rm, wm)
+		for dz2 in [-0.8, 0.8]:
+			_wire_sag(Vector3(xs[i], 7.1, pz + dz2), Vector3(xs[i + 1], 7.1, pz + dz2), 0.7, rm, wm)
+
+func _wire_sag(a: Vector3, b: Vector3, sag: float, rm: BoxMesh, mat: Material) -> void:
+	var n := 8
+	var prev := a
+	for i in range(1, n + 1):
+		var t := float(i) / float(n)
+		var p := a.lerp(b, t)
+		p.y -= sag * 4.0 * t * (1.0 - t)
+		_wire(prev, p, rm, mat)
+		prev = p
 
 # ---------------- ввод ----------------
 func _input(event: InputEvent) -> void:
