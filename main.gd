@@ -112,6 +112,8 @@ func _ready() -> void:
 	_build_story()
 	_build_dojo()
 	_build_poles()
+	_build_port()
+	_build_fences()
 	_build_audio()
 	_build_stones()
 	_build_birds()
@@ -285,21 +287,14 @@ func _house(x: float, z: float, w: float, d: float, h: float, wall: Color, roof:
 func _build_world() -> void:
 	# земля
 	var ground := _box(Vector3(0, -0.5, 0), Vector3(400, 1, 400), Color(0.35, 0.62, 0.3))
-	var gm := (ground.get_child(0) as MeshInstance3D).material_override as StandardMaterial3D
-	var nt := NoiseTexture2D.new()
-	var noise := FastNoiseLite.new()
-	noise.frequency = 0.05
-	nt.noise = noise
-	nt.seamless = true
-	gm.albedo_texture = nt
-	gm.uv1_scale = Vector3(30, 30, 1)
+	_skin(ground, "grass", 6.0)
 	# дорожка во дворе, тротуар, дорога «Липовая»
-	_box(Vector3(0, 0.02, 4), Vector3(3, 0.04, 12), Color(0.75, 0.72, 0.65), false)
-	_box(Vector3(0, 0.02, 12), Vector3(200, 0.04, 4), Color(0.72, 0.72, 0.74))
-	_box(Vector3(0, 0.02, 20), Vector3(200, 0.04, 10), Color(0.25, 0.25, 0.28))
+	_skin(_box(Vector3(0, 0.02, 4), Vector3(3, 0.04, 12), Color.WHITE, false), "pave", 3.0)
+	_skin(_box(Vector3(0, 0.02, 12), Vector3(200, 0.04, 4), Color.WHITE), "pave", 4.0)
+	_skin(_box(Vector3(0, 0.02, 20), Vector3(200, 0.04, 10), Color.WHITE), "asphalt", 6.0)
 	for i in range(-9, 10):
 		_box(Vector3(i * 10.0, 0.05, 20), Vector3(4, 0.02, 0.25), Color(0.95, 0.95, 0.9), false)
-	_box(Vector3(0, 0.02, 28), Vector3(200, 0.04, 4), Color(0.72, 0.72, 0.74))
+	_skin(_box(Vector3(0, 0.02, 28), Vector3(200, 0.04, 4), Color.WHITE), "pave", 4.0)
 	# дом бабушки и двор
 	_grandma_house()
 	# забор
@@ -960,7 +955,7 @@ const L_PTS := [Vector3(-60, 0, 13), Vector3(-42, 0, 27), Vector3(-26, 0, 13), V
 const CAR_POS := Vector3(-60, 0, 35)
 const DOOR_POS := Vector3(-1.3, 0, -1.0)
 const THUG_WP := [Vector3(-47, 0.04, 35.5), Vector3(-47, 0.04, 31.0), Vector3(-38, 0.04, 22.0), Vector3(0, 0.04, 22.0), Vector3(40, 0.04, 22.0), Vector3(40, 0.04, 17.0), Vector3(0, 0.04, 17.0), Vector3(-40, 0.04, 17.0), Vector3(-47, 0.04, 31.0)]
-const TP := [["Двор", Vector3(0, 0.5, 6)], ["Рынок", Vector3(-50, 0.5, 31)], ["Скейт-парк", Vector3(80, 0.5, 6)], ["Зал Пака", Vector3(33, 0.5, 2)]]
+const TP := [["Двор", Vector3(0, 0.5, 6)], ["Рынок", Vector3(-50, 0.5, 31)], ["Скейт-парк", Vector3(80, 0.5, 6)], ["Зал Пака", Vector3(33, 0.5, 2)], ["Порт", Vector3(-5, 0.5, 66)]]
 const DOJO := Vector3(33, 0, -9)
 const BAG_POS := Vector3(38.2, 0, -3.2)
 const SPAR_START := Vector3(41, 0.04, 6)
@@ -1108,21 +1103,12 @@ func _glow_box(pos: Vector3, size: Vector3, c: Color) -> void:
 	m.emission_energy_multiplier = 1.2
 
 func _build_market() -> void:
-	_box(Vector3(-50, 0.03, 44), Vector3(40, 0.06, 28), Color(0.8, 0.76, 0.66), false)
+	_skin(_box(Vector3(-50, 0.03, 44), Vector3(40, 0.06, 28), Color.WHITE, false), "cobble", 4.0)
 	_box(Vector3(-58, 2.0, 31.5), Vector3(0.3, 4.0, 0.3), Color(0.35, 0.25, 0.2), false)
 	_box(Vector3(-42, 2.0, 31.5), Vector3(0.3, 4.0, 0.3), Color(0.35, 0.25, 0.2), false)
 	_box(Vector3(-50, 4.0, 31.5), Vector3(16.6, 0.3, 0.3), Color(0.35, 0.25, 0.2), false)
 	_label("РЫНОК", Vector3(-50, 5.2, 31.5), 160, Color(1, 0.85, 0.2))
-	var awn := [Color(0.85, 0.25, 0.2), Color(0.2, 0.55, 0.8), Color(0.9, 0.7, 0.15), Color(0.3, 0.65, 0.35), Color(0.7, 0.3, 0.6)]
-	var xs := [-64.0, -57.0, -50.0, -43.0, -36.0]
-	for k in range(5):
-		var x: float = xs[k]
-		_box(Vector3(x, 0.5, 40), Vector3(3.2, 1.0, 1.2), Color(0.6, 0.45, 0.3))
-		_box(Vector3(x - 1.6, 1.4, 41.8), Vector3(0.12, 2.8, 0.12), Color(0.4, 0.3, 0.2), false)
-		_box(Vector3(x + 1.6, 1.4, 41.8), Vector3(0.12, 2.8, 0.12), Color(0.4, 0.3, 0.2), false)
-		_box(Vector3(x, 2.85, 40.6), Vector3(3.8, 0.12, 2.6), awn[k], false, Vector3(-0.12, 0, 0))
-		for j in range(3):
-			_box(Vector3(x - 1.0 + j, 1.15, 40), Vector3(0.4, 0.3, 0.4), Color.from_hsv(0.12 * float(j + k), 0.6, 0.9), false)
+	_market_extra()
 	_label("ЛАВКА У ГОШИ", Vector3(-50, 3.5, 39.0), 110, Color(1, 1, 1), 0.009)
 	for cp in [Vector3(-68, 0.4, 50), Vector3(-66.5, 0.4, 50.4), Vector3(-67.2, 1.2, 50.2), Vector3(-33, 0.4, 52), Vector3(-34.4, 0.4, 51.6)]:
 		_box(cp, Vector3(1.0, 0.8, 1.0), Color(0.62, 0.48, 0.3))
@@ -1487,6 +1473,8 @@ func _district() -> String:
 	if player == null:
 		return "Липовая"
 	var p := player.global_position
+	if p.z > 60.0 and p.x > -45.0 and p.x < 75.0:
+		return "Порт"
 	if p.x > 52.0:
 		return "Ромашка"
 	if p.x < -28.0 and p.z > 30.0:
@@ -1515,6 +1503,9 @@ func _mini_draw() -> void:
 	_mm_rect(-71, -12.5, -61, -5.5, Color(0.3, 0.35, 0.5))
 	_mm_rect(29.3, -12.5, 36.7, -5.0, Color(0.8, 0.3, 0.3))
 	_mm_rect(-70, 30, -30, 58, Color(0.85, 0.8, 0.65))
+	_mm_rect(-120, 104, 160, 200, Color(0.2, 0.45, 0.7))
+	_mm_rect(-8.5, 30, -1.5, 62, Color(0.25, 0.25, 0.28))
+	_mm_rect(-40, 62, 70, 104, Color(0.62, 0.63, 0.65))
 	_mm_rect(54, -31, 106, 11, Color(0.6, 0.6, 0.66))
 	for id in npcs.keys():
 		var n: Node3D = npcs[id]["node"]
@@ -1720,12 +1711,13 @@ func _build_audio() -> void:
 	roll_pl.volume_db = -80.0
 	add_child(roll_pl)
 	roll_pl.play()
+	_build_ambient()
 	_build_bird_audio()
 	_snd_apply()
 
 func _snd_apply() -> void:
 	if music_pl != null:
-		music_pl.volume_db = -15.0 if snd_on else -80.0
+		music_pl.volume_db = -18.0 if snd_on else -80.0
 
 func _sfx(n: String) -> void:
 	if not snd_on or sfx_pl.is_empty() or not snd.has(n):
@@ -1911,6 +1903,11 @@ func _make_bird(kind: String, home: Vector3) -> Dictionary:
 		sz = 0.85
 		col = Color(0.05, 0.05, 0.09)
 		belly = Color(0.95, 0.95, 0.95)
+	elif kind == "gull":
+		sz = 1.25
+		col = Color(0.6, 0.65, 0.72)
+		belly = Color(0.97, 0.97, 0.97)
+		beak = Color(0.95, 0.75, 0.2)
 	elif kind == "sparrow":
 		sz = 0.4
 		col = Color(0.55, 0.4, 0.28)
@@ -2227,7 +2224,7 @@ func _band(n: MeshInstance3D, a: Vector3, b: Vector3) -> void:
 	if l < 0.001:
 		return
 	var up := Vector3.UP if absf(dv.normalized().y) < 0.95 else Vector3.RIGHT
-	n.transform = Transform3D(Basis.looking_at(dv, up).scaled(Vector3(1, 1, l)), (a + b) * 0.5)
+	n.transform = Transform3D(Basis.looking_at(dv, up) * Basis.from_scale(Vector3(1, 1, l)), (a + b) * 0.5)
 
 func _sling_update(d: float) -> void:
 	if sling == null:
@@ -2576,6 +2573,7 @@ func _house_tex(x: float, z: float, sc: float, face_z: float, hue: float) -> boo
 				sm.set_shader_parameter("hue_shift", hue)
 				mesh.set_surface_override_material(si, sm)
 	var k := sc / 13.5
+	house_doors.append(Vector3(x + (2.7 * k if face_z > 0.0 else -2.7 * k), 0.0, z))
 	var ry := 0.0 if face_z > 0.0 else PI
 	var o := Vector3(x, 0, z)
 	_col_boxr(o, ry, Vector3(0, 6.0, -1.05), Vector3(12.4, 12.0, 10.1), 0.0, k)
@@ -2615,6 +2613,696 @@ func _wire_sag(a: Vector3, b: Vector3, sag: float, rm: BoxMesh, mat: Material) -
 		p.y -= sag * 4.0 * t * (1.0 - t)
 		_wire(prev, p, rm, mat)
 		prev = p
+
+# ---------------- текстуры, рынок, порт, заборы, звуки города ----------------
+var tex_cache: Dictionary = {}
+var house_doors: Array = []
+var water_mat: StandardMaterial3D
+var ship: Node3D
+var gulls: Array = []
+var world_t := 0.0
+var amb_pl: Array = []
+var amb_spot: AudioStreamPlayer
+var amb_car_t := 8.0
+var amb_horn_t := 25.0
+
+func _tn(noise: FastNoiseLite, x: float, y: float, n: float) -> float:
+	var a := noise.get_noise_2d(x, y)
+	var b := noise.get_noise_2d(x - n, y)
+	var c := noise.get_noise_2d(x, y - n)
+	var e := noise.get_noise_2d(x - n, y - n)
+	return ((a * (n - x) * (n - y) + b * x * (n - y) + c * (n - x) * y + e * x * y) / (n * n)) * 0.5 + 0.5
+
+func _tex(kind: String) -> ImageTexture:
+	if tex_cache.has(kind):
+		return tex_cache[kind]
+	var n := 64
+	var img := Image.create(n, n, false, Image.FORMAT_RGB8)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(kind)
+	var nz := FastNoiseLite.new()
+	nz.seed = int(rng.randi() % 1000)
+	nz.frequency = 0.05
+	var nz2 := FastNoiseLite.new()
+	nz2.seed = 7
+	nz2.frequency = 0.22
+	for y in range(n):
+		for x in range(n):
+			var fx := float(x)
+			var fy := float(y)
+			var c := Color.WHITE
+			var n1 := _tn(nz, fx, fy, float(n))
+			var n2 := _tn(nz2, fx, fy, float(n))
+			match kind:
+				"grass":
+					var v := 0.82 + 0.3 * n1 + 0.12 * n2
+					c = Color(0.28, 0.56, 0.24) * v
+					var r := rng.randf()
+					if r < 0.07:
+						c *= 0.8
+					elif r > 0.95:
+						c *= 1.18
+					c.a = 1.0
+				"asphalt":
+					var v2 := 0.85 + 0.25 * n1 + 0.15 * n2
+					c = Color(0.2, 0.2, 0.23) * v2
+					if rng.randf() > 0.9:
+						c += Color(0.1, 0.1, 0.1)
+					c.a = 1.0
+				"pave":
+					var tx := int(x / 32)
+					var ty := int(y / 32)
+					var tb := 0.94 + 0.06 * float((tx * 3 + ty * 5) % 3) * 0.5
+					c = Color(0.74, 0.74, 0.76) * tb * (0.94 + 0.1 * n2)
+					if x % 32 < 1 or y % 32 < 1:
+						c = Color(0.48, 0.48, 0.5)
+					c.a = 1.0
+				"cobble":
+					var tx2 := int(x / 16)
+					var ty2 := int((y + (tx2 % 2) * 8) / 16)
+					var tb2 := 0.88 + 0.12 * fposmod(float(tx2 * 7 + ty2 * 13) * 0.37, 1.0)
+					c = Color(0.78, 0.72, 0.6) * tb2 * (0.92 + 0.12 * n2)
+					if x % 16 < 1 or (y + (tx2 % 2) * 8) % 16 < 1:
+						c = Color(0.5, 0.45, 0.36)
+					c.a = 1.0
+				"concrete":
+					c = Color(0.62, 0.63, 0.65) * (0.9 + 0.2 * n1 + 0.06 * n2)
+					if x % 32 < 1 or y % 32 < 1:
+						c = Color(0.4, 0.41, 0.43)
+					c.a = 1.0
+				"wood":
+					var pl := int(y / 16)
+					var gr := _tn(nz2, fx * 0.2, fy * 3.0, float(n))
+					c = Color(0.6, 0.42, 0.26) * (0.8 + 0.3 * gr + 0.03 * float(pl % 3))
+					if y % 16 < 1:
+						c = Color(0.3, 0.2, 0.12)
+					c.a = 1.0
+				"corr":
+					var rib := 0.8 + 0.2 * sin(fx * TAU / 8.0)
+					c = Color(0.82, 0.82, 0.84) * rib * (0.95 + 0.08 * n2)
+					c.a = 1.0
+				"water":
+					var wv := 0.7 + 0.5 * n1 + 0.2 * n2
+					c = Color(0.12, 0.42, 0.62) * wv
+					c.a = 1.0
+			img.set_pixel(x, y, c)
+	img.generate_mipmaps()
+	var t := ImageTexture.create_from_image(img)
+	tex_cache[kind] = t
+	return t
+
+func _awning_tex(col: Color) -> ImageTexture:
+	var key := "aw" + col.to_html()
+	if tex_cache.has(key):
+		return tex_cache[key]
+	var img := Image.create(32, 32, false, Image.FORMAT_RGB8)
+	for y in range(32):
+		for x in range(32):
+			img.set_pixel(x, y, col if (x / 8) % 2 == 0 else Color(0.96, 0.95, 0.9))
+	img.generate_mipmaps()
+	var t := ImageTexture.create_from_image(img)
+	tex_cache[key] = t
+	return t
+
+func _skin_tex(body: Node3D, tex: Texture2D, tile: float, tint := Color.WHITE) -> void:
+	var mi := body.get_child(0) as MeshInstance3D
+	var m := mi.material_override as StandardMaterial3D
+	m.albedo_color = tint
+	m.albedo_texture = tex
+	m.uv1_triplanar = true
+	m.uv1_world_triplanar = true
+	m.uv1_scale = Vector3.ONE / tile
+
+func _skin(body: Node3D, kind: String, tile: float, tint := Color.WHITE) -> void:
+	_skin_tex(body, _tex(kind), tile, tint)
+
+func _fruit(p: Vector3, c: Color) -> void:
+	var mi := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.15
+	sm.height = 0.3
+	sm.radial_segments = 8
+	sm.rings = 4
+	mi.mesh = sm
+	mi.material_override = _mat(c, 0.6)
+	mi.position = p
+	mi.visibility_range_end = 80.0
+	add_child(mi)
+
+func _stall(x: float, z: float, face: float, col: Color, nm: String, hue: float) -> void:
+	_skin(_box(Vector3(x, 0.5, z), Vector3(3.2, 1.0, 1.2), Color.WHITE), "wood", 1.5)
+	for sx in [-1.6, 1.6]:
+		_skin(_box(Vector3(x + sx, 1.4, z + face * 1.8), Vector3(0.12, 2.8, 0.12), Color.WHITE, false), "wood", 1.0)
+		_skin(_box(Vector3(x + sx, 1.6, z - face * 0.5), Vector3(0.12, 3.2, 0.12), Color.WHITE, false), "wood", 1.0)
+	var aw := _box(Vector3(x, 3.1, z + face * 0.65), Vector3(3.8, 0.12, 2.9), Color.WHITE, false, Vector3(0.12 * face, 0, 0))
+	_skin_tex(aw, _awning_tex(col), 2.0)
+	for j in range(5):
+		_fruit(Vector3(x - 1.2 + float(j) * 0.6, 1.16, z + face * 0.1), Color.from_hsv(fposmod(hue + 0.11 * float(j), 1.0), 0.65, 0.92))
+	if nm != "":
+		_label(nm, Vector3(x, 3.9, z + face * 1.2), 64, Color(1, 1, 1), 0.011)
+
+func _bunting(a: Vector3, b: Vector3) -> void:
+	var rm := BoxMesh.new()
+	rm.size = Vector3(0.03, 0.03, 1.0)
+	var wm := _mat(Color(0.15, 0.15, 0.15), 0.6)
+	_wire_sag(a, b, 0.8, rm, wm)
+	var fm := BoxMesh.new()
+	fm.size = Vector3(0.28, 0.38, 0.02)
+	var cols := [Color(0.9, 0.25, 0.2), Color(0.95, 0.8, 0.2), Color(0.25, 0.6, 0.85), Color(0.35, 0.7, 0.4), Color(0.85, 0.4, 0.75)]
+	var cnt := int(a.distance_to(b))
+	for i in range(1, cnt):
+		var t := float(i) / float(cnt)
+		var p := a.lerp(b, t)
+		p.y -= 0.8 * 4.0 * t * (1.0 - t) + 0.2
+		var mi := MeshInstance3D.new()
+		mi.mesh = fm
+		mi.material_override = _mat(cols[i % cols.size()], 0.8)
+		mi.position = p
+		mi.rotation.z = 0.12 * float((i % 3) - 1)
+		add_child(mi)
+
+func _market_extra() -> void:
+	var awn := [Color(0.85, 0.25, 0.2), Color(0.2, 0.55, 0.8), Color(0.9, 0.7, 0.15), Color(0.3, 0.65, 0.35), Color(0.7, 0.3, 0.6)]
+	var r1x := [-64.0, -57.0, -50.0, -43.0, -36.0]
+	var r1n := ["ОВОЩИ", "ХЛЕБ", "", "ФРУКТЫ", "ЦВЕТЫ"]
+	for k in range(5):
+		_stall(float(r1x[k]), 40.0, 1.0, awn[k], str(r1n[k]), 0.12 * float(k))
+	var r2x := [-64.0, -56.0, -48.0, -40.0]
+	var r2n := ["РЫБА", "МОЛОКО", "ИГРУШКИ", "ЧАЙ"]
+	for k in range(4):
+		_stall(float(r2x[k]), 54.0, -1.0, awn[(k + 2) % 5], str(r2n[k]), 0.3 + 0.1 * float(k))
+	_bunting(Vector3(-69, 5.0, 46), Vector3(-31, 5.0, 46))
+	for px in [-69.0, -31.0]:
+		_skin(_box(Vector3(px, 2.6, 46), Vector3(0.2, 5.2, 0.2), Color.WHITE, false), "wood", 1.0)
+	for bp in [Vector3(-70, 0.4, 36), Vector3(-30.5, 0.4, 38), Vector3(-30.8, 0.4, 47)]:
+		var bar := CylinderMesh.new()
+		bar.top_radius = 0.4
+		bar.bottom_radius = 0.4
+		bar.height = 0.8
+		bar.radial_segments = 10
+		var bi := MeshInstance3D.new()
+		bi.mesh = bar
+		bi.material_override = _mat(Color(0.2, 0.4, 0.7) if bp.x < -50.0 else Color(0.7, 0.25, 0.2), 0.6)
+		bi.position = bp
+		add_child(bi)
+
+# ---------- заборы и кусты ----------
+var bush_mesh: SphereMesh
+var bush_mats: Array = []
+
+func _picket(a: float, b: float, z: float) -> void:
+	var l := b - a
+	if l < 0.6:
+		return
+	var cnt := int(l / 0.3)
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.1, 0.9, 0.04)
+	mm.mesh = bm
+	mm.instance_count = cnt
+	for i in range(cnt):
+		mm.set_instance_transform(i, Transform3D(Basis(), Vector3(a + (float(i) + 0.5) * l / float(cnt), 0.45, z)))
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = mm
+	mmi.material_override = _mat(Color(0.93, 0.89, 0.8))
+	mmi.visibility_range_end = 110.0
+	add_child(mmi)
+	var rc := Color(0.85, 0.8, 0.7)
+	_box(Vector3((a + b) * 0.5, 0.3, z + 0.04), Vector3(l, 0.07, 0.05), rc, false)
+	_box(Vector3((a + b) * 0.5, 0.7, z + 0.04), Vector3(l, 0.07, 0.05), rc, false)
+	var sb := StaticBody3D.new()
+	sb.position = Vector3((a + b) * 0.5, 0.5, z)
+	var cs := CollisionShape3D.new()
+	var sh := BoxShape3D.new()
+	sh.size = Vector3(l, 1.0, 0.12)
+	cs.shape = sh
+	sb.add_child(cs)
+	add_child(sb)
+
+func _fence_line(z: float, x0: float, x1: float, gaps: Array) -> void:
+	gaps.sort_custom(func(p, q): return p.x < q.x)
+	var cur := x0
+	for g in gaps:
+		var ga: float = g.x - g.y
+		var gb: float = g.x + g.y
+		if gb < cur or ga > x1:
+			continue
+		if ga > cur:
+			_picket(cur, minf(ga, x1), z)
+		cur = maxf(cur, gb)
+	if cur < x1:
+		_picket(cur, x1, z)
+
+func _bush(p: Vector3, r: float, seed_v: float) -> void:
+	if bush_mesh == null:
+		bush_mesh = SphereMesh.new()
+		bush_mesh.radius = 0.5
+		bush_mesh.height = 1.0
+		bush_mesh.radial_segments = 10
+		bush_mesh.rings = 5
+		for g in [Color(0.2, 0.5, 0.2), Color(0.25, 0.58, 0.22), Color(0.17, 0.44, 0.2)]:
+			bush_mats.append(_mat(g, 0.9))
+	var root := Node3D.new()
+	root.position = p
+	add_child(root)
+	for j in range(3):
+		var mi := MeshInstance3D.new()
+		mi.mesh = bush_mesh
+		mi.material_override = bush_mats[(j + int(seed_v * 7.0)) % 3]
+		mi.visibility_range_end = 85.0
+		var a := seed_v * 6.0 + float(j) * 2.1
+		mi.position = Vector3(cos(a) * r * 0.5, r * (0.35 + 0.1 * float(j % 2)), sin(a) * r * 0.5)
+		mi.scale = Vector3.ONE * r * (1.1 - 0.15 * float(j))
+		root.add_child(mi)
+	if seed_v > 0.65:
+		var fc := Color.from_hsv(fposmod(seed_v * 3.0, 1.0), 0.6, 0.95)
+		for j in range(5):
+			var f := MeshInstance3D.new()
+			var fm := SphereMesh.new()
+			fm.radius = 0.07
+			fm.height = 0.14
+			fm.radial_segments = 6
+			fm.rings = 3
+			f.mesh = fm
+			f.material_override = _mat(fc, 0.6)
+			var b := seed_v * 9.0 + float(j) * 1.3
+			f.position = Vector3(cos(b) * r * 0.75, r * (0.5 + 0.1 * float(j % 3)), sin(b) * r * 0.75)
+			root.add_child(f)
+
+func _rnd(x: float, z: float) -> float:
+	return fposmod(sin(x * 12.9898 + z * 78.233) * 43758.5453, 1.0)
+
+func _build_fences() -> void:
+	var gn: Array = []
+	var gs: Array = []
+	for d in house_doors:
+		var dd: Vector3 = d
+		if dd.z < 0.0:
+			gn.append(Vector2(dd.x, 2.2))
+		else:
+			gs.append(Vector2(dd.x, 2.2))
+	gs.append(Vector2(-5.0, 4.5))
+	_fence_line(10.0, -92.0, -15.0, gn.duplicate())
+	_fence_line(10.0, 15.0, 52.0, gn.duplicate())
+	_fence_line(30.7, -27.0, 100.0, gs.duplicate())
+	for d in gn:
+		var g: Vector2 = d
+		_bush(Vector3(g.x - 3.1, 0.0, 8.6), 1.0 + 0.4 * _rnd(g.x, 1.0), _rnd(g.x, 2.0))
+		_bush(Vector3(g.x + 3.1, 0.0, 8.6), 1.0 + 0.4 * _rnd(g.x, 3.0), _rnd(g.x, 4.0))
+	for d in gs:
+		var g2: Vector2 = d
+		_bush(Vector3(g2.x - g2.y - 1.0, 0.0, 31.6), 1.0 + 0.4 * _rnd(g2.x, 5.0), _rnd(g2.x, 6.0))
+		_bush(Vector3(g2.x + g2.y + 1.0, 0.0, 31.6), 1.0 + 0.4 * _rnd(g2.x, 7.0), _rnd(g2.x, 8.0))
+	for xi in range(-88, 52, 7):
+		var xf := float(xi)
+		if absf(xf) < 16.0 or _rnd(xf, 9.0) < 0.35:
+			continue
+		_bush(Vector3(xf, 0.0, 8.8), 0.9 + 0.5 * _rnd(xf, 10.0), _rnd(xf, 11.0))
+	for xi in range(-24, 98, 8):
+		var xf2 := float(xi)
+		if _rnd(xf2, 12.0) < 0.4 or absf(xf2 + 5.0) < 6.0:
+			continue
+		_bush(Vector3(xf2, 0.0, 31.4), 0.9 + 0.5 * _rnd(xf2, 13.0), _rnd(xf2, 14.0))
+
+# ---------- порт ----------
+func _crate(p: Vector3, s: Vector3, c: Color) -> void:
+	_skin(_box(p, s, Color.WHITE), "wood", 1.5, c)
+
+func _container(p: Vector3, along_x: bool, c: Color) -> void:
+	var size := Vector3(6.0, 2.6, 2.5) if along_x else Vector3(2.5, 2.6, 6.0)
+	_skin(_box(p, size, Color.WHITE), "corr", 3.0, c)
+
+func _build_port() -> void:
+	# дорога в порт
+	_skin(_box(Vector3(-5, 0.025, 46.5), Vector3(7, 0.05, 33), Color.WHITE, false), "asphalt", 6.0)
+	for k in range(6):
+		_box(Vector3(-5, 0.06, 33.0 + float(k) * 5.5), Vector3(0.2, 0.02, 2.5), Color(0.95, 0.95, 0.9), false)
+	for sx in [-9.5, -0.5]:
+		_skin(_box(Vector3(sx, 0.03, 46.5), Vector3(2.0, 0.06, 33), Color.WHITE, false), "pave", 4.0)
+	# причал
+	_skin(_box(Vector3(15, 0.04, 83.5), Vector3(110, 0.08, 43), Color.WHITE, false), "concrete", 6.0)
+	_box(Vector3(15, 0.2, 103.6), Vector3(110, 0.4, 1.0), Color(0.35, 0.36, 0.4), true)
+	for wx in [-40.5, 70.5]:
+		_box(Vector3(wx, 1.5, 83.5), Vector3(0.3, 3.0, 43), Color(0.5, 0.5, 0.5), true).visible = false
+	_box(Vector3(15, 1.5, 104.2), Vector3(112, 3.0, 0.3), Color(0.5, 0.5, 0.5), true).visible = false
+	# вода
+	var wm := MeshInstance3D.new()
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(300, 110)
+	wm.mesh = pm
+	water_mat = StandardMaterial3D.new()
+	water_mat.albedo_texture = _tex("water")
+	water_mat.albedo_color = Color(1, 1, 1, 0.9)
+	water_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	water_mat.uv1_scale = Vector3(30, 11, 1)
+	water_mat.roughness = 0.25
+	water_mat.metallic_specular = 0.8
+	wm.material_override = water_mat
+	wm.position = Vector3(15, 0.03, 160)
+	add_child(wm)
+	# вход и вывеска
+	for gx in [-9.2, -0.8]:
+		_skin(_box(Vector3(gx, 3.2, 60.5), Vector3(0.5, 6.4, 0.5), Color.WHITE, false), "concrete", 3.0)
+	_box(Vector3(-5, 6.5, 60.5), Vector3(10.2, 1.4, 0.4), Color(0.15, 0.3, 0.55), false)
+	_label("ПОРТ", Vector3(-5, 6.5, 60.8), 110, Color(1, 0.95, 0.7), 0.012)
+	# склады
+	var wh := [[Vector3(-27, 4.0, 72), Color(0.35, 0.5, 0.75), "СКЛАД №1"], [Vector3(-27, 4.0, 92), Color(0.75, 0.38, 0.3), "СКЛАД №2"]]
+	for w in wh:
+		var wp: Vector3 = w[0]
+		_skin(_box(wp, Vector3(18, 8, 14), Color.WHITE), "corr", 3.0, w[1])
+		var rf := MeshInstance3D.new()
+		var rp := PrismMesh.new()
+		rp.size = Vector3(18.8, 2.2, 14.8)
+		rf.mesh = rp
+		rf.material_override = _mat(Color(0.3, 0.3, 0.34))
+		rf.position = wp + Vector3(0, 5.1, 0)
+		add_child(rf)
+		_box(wp + Vector3(9.05, -1.0, 0), Vector3(0.1, 5.0, 6.0), Color(0.22, 0.24, 0.28), false)
+		_label(str(w[2]), wp + Vector3(9.6, 4.6, 0), 80, Color(1, 1, 1), 0.01)
+	# контейнеры
+	var cc := [Color(0.8, 0.25, 0.2), Color(0.2, 0.45, 0.75), Color(0.9, 0.7, 0.15), Color(0.25, 0.6, 0.4), Color(0.85, 0.5, 0.2), Color(0.5, 0.3, 0.65)]
+	for r in range(3):
+		for ci in range(6):
+			var cx := 12.0 + float(ci) * 7.4
+			var cz := 68.0 + float(r) * 3.2
+			var col: Color = cc[(r * 2 + ci) % cc.size()]
+			_container(Vector3(cx, 1.3, cz), true, col)
+			if (r + ci) % 2 == 0:
+				_container(Vector3(cx, 3.9, cz), true, cc[(r + ci * 3 + 1) % cc.size()])
+	for r2 in range(2):
+		for ci2 in range(4):
+			var cx2 := 14.0 + float(ci2) * 3.2
+			var cz2 := 92.0 + float(r2) * 6.6
+			_container(Vector3(cx2, 1.3, cz2), false, cc[(ci2 + r2 * 2) % cc.size()])
+	for k in range(5):
+		_crate(Vector3(2.5 + float(k % 2) * 1.2, 0.6 + float(k / 2) * 1.2, 66.5 + float(k) * 0.3), Vector3(1.1, 1.1, 1.1), Color(0.95, 0.85, 0.75))
+	var barrel := CylinderMesh.new()
+	barrel.top_radius = 0.4
+	barrel.bottom_radius = 0.4
+	barrel.height = 1.0
+	barrel.radial_segments = 10
+	for k2 in range(6):
+		var bm := MeshInstance3D.new()
+		bm.mesh = barrel
+		bm.material_override = _mat(Color(0.2, 0.4, 0.7) if k2 % 2 == 0 else Color(0.75, 0.25, 0.2), 0.6)
+		bm.position = Vector3(48.0 + float(k2 % 3) * 0.9, 0.5, 98.0 + float(k2 / 3) * 0.9)
+		add_child(bm)
+	# кран
+	var yc := Color(0.95, 0.75, 0.1)
+	for lx in [30.0, 40.0]:
+		for lz in [98.0, 102.0]:
+			_box(Vector3(lx, 7.0, lz), Vector3(0.8, 14.0, 0.8), yc, true)
+	_box(Vector3(35, 14.2, 100), Vector3(11, 1.0, 5), yc, false)
+	_box(Vector3(35, 14.4, 109), Vector3(1.4, 1.0, 26), Color(0.8, 0.2, 0.15), false)
+	_box(Vector3(35, 12.0, 106), Vector3(0.1, 4.0, 0.1), Color(0.15, 0.15, 0.15), false)
+	_box(Vector3(35, 10.0, 106), Vector3(1.2, 0.8, 1.2), Color(0.85, 0.85, 0.85), false)
+	# фонари
+	for lp in [Vector3(-12, 0, 66), Vector3(2, 0, 80), Vector3(2, 0, 98), Vector3(60, 0, 80), Vector3(60, 0, 98), Vector3(-12, 0, 100)]:
+		_box(lp + Vector3(0, 3.0, 0), Vector3(0.15, 6.0, 0.15), Color(0.25, 0.25, 0.3), false)
+		_glow_box(lp + Vector3(0, 6.1, 0), Vector3(0.6, 0.3, 0.6), Color(1, 0.95, 0.65))
+	for bp in range(8):
+		var bo := CylinderMesh.new()
+		bo.top_radius = 0.2
+		bo.bottom_radius = 0.28
+		bo.height = 0.7
+		bo.radial_segments = 8
+		var bmi := MeshInstance3D.new()
+		bmi.mesh = bo
+		bmi.material_override = _mat(Color(0.15, 0.15, 0.17))
+		bmi.position = Vector3(-30.0 + float(bp) * 14.0, 0.6, 102.6)
+		add_child(bmi)
+	# корабль
+	ship = Node3D.new()
+	ship.position = Vector3(8, 0, 126)
+	add_child(ship)
+	var hull := _box(Vector3(0, 1.2, 0), Vector3(14, 5.0, 46), Color(0.55, 0.12, 0.12), false)
+	hull.reparent(ship, false)
+	hull.position = Vector3(0, 1.2, 0)
+	var parts := [[Vector3(0, 3.8, 16), Vector3(9, 5, 8), Color(0.95, 0.95, 0.95)], [Vector3(0, 7.2, 16), Vector3(6, 2.5, 6), Color(0.9, 0.9, 0.92)],
+		[Vector3(0, 3.8, -12), Vector3(10, 0.4, 20), Color(0.3, 0.32, 0.36)]]
+	for pt in parts:
+		var nb := _box(pt[0], pt[1], pt[2], false)
+		nb.reparent(ship, false)
+		nb.position = pt[0]
+	for ci3 in range(6):
+		var cb := _box(Vector3(-2.6 + float(ci3 % 2) * 5.2, 5.4, -18.0 + float(ci3 / 2) * 6.5), Vector3(2.5, 2.6, 6.0), cc[ci3 % cc.size()], false)
+		cb.reparent(ship, false)
+		cb.position = Vector3(-2.6 + float(ci3 % 2) * 5.2, 5.4, -18.0 + float(ci3 / 2) * 6.5)
+	var fn := CylinderMesh.new()
+	fn.top_radius = 0.9
+	fn.bottom_radius = 1.2
+	fn.height = 3.5
+	var fi := MeshInstance3D.new()
+	fi.mesh = fn
+	fi.material_override = _mat(Color(0.85, 0.2, 0.15))
+	fi.position = Vector3(0, 10.2, 17)
+	ship.add_child(fi)
+	# чайки
+	for gi in range(5):
+		var g := _make_bird("gull", Vector3(0, 0, 0))
+		var gn2: Node3D = g["node"]
+		g["a"] = randf() * TAU
+		g["r"] = randf_range(14.0, 34.0)
+		g["h"] = randf_range(11.0, 20.0)
+		g["sp"] = randf_range(0.18, 0.32) * (1.0 if gi % 2 == 0 else -1.0)
+		g["cry"] = randf_range(3.0, 9.0)
+		g["c"] = Vector3(15.0 + randf_range(-8.0, 8.0), 0.0, 88.0 + randf_range(-6.0, 6.0))
+		gulls.append(g)
+		gn2.visible = false
+
+func _world_update(d: float) -> void:
+	world_t += d
+	_amb_finish()
+	if water_mat != null:
+		water_mat.uv1_offset = Vector3(world_t * 0.015, world_t * 0.01, 0)
+	if ship != null:
+		ship.position.y = sin(world_t * 0.8) * 0.12
+		ship.rotation.z = sin(world_t * 0.55) * 0.012
+		ship.rotation.x = sin(world_t * 0.4) * 0.006
+	if player == null:
+		return
+	var pp := player.global_position
+	for g in gulls:
+		var n: Node3D = g["node"]
+		g["a"] = float(g["a"]) + float(g["sp"]) * d
+		var a: float = g["a"]
+		var c: Vector3 = g["c"]
+		var r: float = g["r"]
+		n.position = c + Vector3(cos(a) * r, float(g["h"]) + sin(world_t * 0.7 + a) * 1.2, sin(a) * r)
+		var sgn := 1.0 if float(g["sp"]) > 0.0 else -1.0
+		n.rotation.y = atan2(-sin(a) * sgn, cos(a) * sgn)
+		var fl := sin(world_t * 5.0 + a * 3.0) * 0.45
+		(g["wl"] as Node3D).rotation.z = fl
+		(g["wr"] as Node3D).rotation.z = -fl
+		n.visible = _flat_dist(pp, n.position) < 120.0
+		g["cry"] = float(g["cry"]) - d
+		if float(g["cry"]) <= 0.0:
+			g["cry"] = randf_range(5.0, 13.0)
+			if _flat_dist(pp, n.position) < 70.0:
+				_amb_play("gull", -9.0 - _flat_dist(pp, n.position) * 0.2)
+	_amb_update(d, pp)
+
+func _amb_play(nm: String, vol: float) -> void:
+	if not snd_on or amb_spot == null or not snd.has(nm):
+		return
+	amb_spot.stream = snd[nm]
+	amb_spot.volume_db = vol
+	amb_spot.play()
+
+func _amb_update(d: float, pp: Vector3) -> void:
+	if amb_pl.size() < 3:
+		return
+	var on := snd_on and state == "play"
+	var wind: AudioStreamPlayer = amb_pl[0]
+	var crowd: AudioStreamPlayer = amb_pl[1]
+	var sea: AudioStreamPlayer = amb_pl[2]
+	var dm := _flat_dist(pp, Vector3(-50, 0, 44))
+	var qx := clampf(pp.x, -40.0, 70.0)
+	var ds := _flat_dist(pp, Vector3(qx, 0, 104))
+	wind.volume_db = (-26.0 + sin(world_t * 0.13) * 3.0) if on else -80.0
+	crowd.volume_db = (-9.0 - maxf(0.0, dm - 12.0) * 0.9) if (on and dm < 70.0) else -80.0
+	sea.volume_db = (-8.0 - maxf(0.0, ds - 6.0) * 0.5) if (on and ds < 85.0) else -80.0
+	amb_car_t -= d
+	if amb_car_t <= 0.0:
+		amb_car_t = randf_range(14.0, 28.0)
+		if pp.z > 3.0 and pp.z < 45.0 and absf(pp.x) < 95.0:
+			_amb_play("car", -17.0)
+	amb_horn_t -= d
+	if amb_horn_t <= 0.0:
+		amb_horn_t = randf_range(45.0, 90.0)
+		if ds < 100.0:
+			_amb_play("horn", -9.0 - ds * 0.12)
+
+# ---------- звуки города ----------
+func _lp_noise(n: int, lp: float) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	out.resize(n)
+	var y := 0.0
+	for i in range(n):
+		y += lp * (randf_range(-1.0, 1.0) - y)
+		out[i] = y
+	return out
+
+func _amb_wind() -> PackedFloat32Array:
+	var n := int(6.0 * float(SR))
+	var o := _lp_noise(n, 0.03)
+	for i in range(n):
+		var t := float(i) / float(SR)
+		o[i] *= (0.7 + 0.3 * sin(TAU * t / 6.0) + 0.15 * sin(TAU * t / 3.0)) * 3.0
+	return o
+
+func _amb_crowd() -> PackedFloat32Array:
+	var n := int(4.0 * float(SR))
+	var a := _lp_noise(n, 0.22)
+	var b := _lp_noise(n, 0.04)
+	var o := PackedFloat32Array()
+	o.resize(n)
+	for i in range(n):
+		var t := float(i) / float(SR)
+		var am := 0.5 + 0.5 * absf(sin(TAU * t * 1.75)) * (0.65 + 0.35 * sin(TAU * t * 0.5 + 1.0))
+		o[i] = (a[i] - b[i]) * am * 2.2
+	return o
+
+func _amb_sea() -> PackedFloat32Array:
+	var n := int(8.0 * float(SR))
+	var a := _lp_noise(n, 0.07)
+	var b := _lp_noise(n, 0.4)
+	var o := PackedFloat32Array()
+	o.resize(n)
+	for i in range(n):
+		var t := float(i) / float(SR)
+		var w := 0.5 + 0.5 * sin(TAU * t / 8.0 - 1.0)
+		var w2 := 0.5 + 0.5 * sin(TAU * t / 4.0)
+		o[i] = a[i] * (0.4 + 0.9 * w * w) * 3.2 + b[i] * 0.25 * w * w2
+	return o
+
+func _amb_gull() -> PackedFloat32Array:
+	var n := int(1.0 * float(SR))
+	var o := PackedFloat32Array()
+	o.resize(n)
+	var ph := 0.0
+	for i in range(n):
+		var u := float(i) / float(n)
+		var seg := u * 3.0
+		var f := 0.0
+		var env := 0.0
+		if seg < 1.0:
+			f = lerpf(1700.0, 2500.0, seg)
+			env = sin(PI * seg)
+		elif seg < 2.0:
+			f = lerpf(2600.0, 1900.0, seg - 1.0)
+			env = sin(PI * (seg - 1.0))
+		else:
+			f = lerpf(2000.0, 1300.0, seg - 2.0)
+			env = sin(PI * (seg - 2.0)) * 0.8
+		ph += (f + sin(u * 120.0) * 90.0) / float(SR)
+		o[i] = (sin(TAU * ph) + 0.4 * sin(TAU * ph * 2.0)) * 0.25 * env
+	return o
+
+func _amb_horn() -> PackedFloat32Array:
+	var n := int(2.6 * float(SR))
+	var o := PackedFloat32Array()
+	o.resize(n)
+	for i in range(n):
+		var t := float(i) / float(SR)
+		var u := t / 2.6
+		var env := minf(1.0, t / 0.25) * clampf((2.6 - t) / 0.8, 0.0, 1.0)
+		o[i] = (sin(TAU * 98.0 * t) + 0.7 * sin(TAU * 147.0 * t) + 0.4 * sin(TAU * 196.0 * t) + 0.2 * sin(TAU * 294.0 * t)) * 0.2 * env
+	return o
+
+func _amb_car() -> PackedFloat32Array:
+	var n := int(3.6 * float(SR))
+	var a := _lp_noise(n, 0.05)
+	var o := PackedFloat32Array()
+	o.resize(n)
+	var ph := 0.0
+	for i in range(n):
+		var u := float(i) / float(n)
+		var env := pow(sin(PI * u), 2.0)
+		ph += lerpf(95.0, 70.0, u) / float(SR)
+		o[i] = (a[i] * 2.5 + sin(TAU * ph) * 0.25 + sin(TAU * ph * 2.0) * 0.1) * env * 0.5
+	return o
+
+func _make_chill() -> AudioStreamWAV:
+	var rate := 8000
+	var seg := 6.0
+	var total := int(seg * 4.0 * float(rate))
+	var out := PackedFloat32Array()
+	out.resize(total)
+	var chords := [[48, 55, 59, 64], [45, 52, 55, 60], [41, 48, 52, 57], [43, 50, 55, 59]]
+	var off := int(1.5 * float(rate))
+	var span := int((seg + 3.0) * float(rate))
+	for ci in range(4):
+		var ch: Array = chords[ci]
+		var t0 := int(float(ci) * seg * float(rate))
+		var notes: Array = ch.duplicate()
+		notes.append(int(ch[0]) - 12)
+		for ni in range(notes.size()):
+			var f := _mf(float(notes[ni]))
+			var amp := 0.085 if ni == 4 else 0.04
+			var parts := [[1.0, 1.0], [0.28, 2.0], [0.55, 1.004]] if ni < 4 else [[1.0, 1.0]]
+			for pr in parts:
+				var w := TAU * f * float(pr[1]) / float(rate)
+				var c2 := 2.0 * cos(w)
+				var y0 := 0.0
+				var y1 := sin(w)
+				var pa: float = float(pr[0]) * amp
+				for i in range(span):
+					var u := float(i) / float(span)
+					var e := 4.0 * u * (1.0 - u)
+					var idx := (t0 - off + i + total) % total
+					out[idx] += y1 * pa * e
+					var y2 := c2 * y1 - y0
+					y0 = y1
+					y1 = y2
+		var pat := [0, 2, 3, 2, 1, 3, 2, 1]
+		for st in range(8):
+			if st == 5 or st == 7:
+				continue
+			var pf := _mf(float(ch[pat[st]]) + 12.0)
+			var plen := int(1.3 * float(rate))
+			var s0 := t0 + int(float(st) * 0.75 * float(rate))
+			for i in range(plen):
+				var t := float(i) / float(rate)
+				var v := sin(TAU * pf * t) * exp(-3.4 * t) + 0.25 * sin(TAU * pf * 2.0 * t) * exp(-7.0 * t)
+				out[(s0 + i) % total] += v * 0.09 * minf(1.0, float(i) / 40.0)
+	return _wav(out, rate, true)
+
+var amb_thread: Thread
+
+func _gen_audio() -> Dictionary:
+	return {"gull": _wav(_amb_gull(), SR), "horn": _wav(_amb_horn(), SR), "car": _wav(_amb_car(), SR),
+		"wind": _wav(_amb_wind(), SR, true), "crowd": _wav(_amb_crowd(), SR, true), "sea": _wav(_amb_sea(), SR, true),
+		"music": _make_chill()}
+
+func _build_ambient() -> void:
+	amb_spot = AudioStreamPlayer.new()
+	add_child(amb_spot)
+	music_pl = AudioStreamPlayer.new()
+	music_pl.volume_db = -18.0
+	add_child(music_pl)
+	for i in range(3):
+		var p := AudioStreamPlayer.new()
+		p.volume_db = -80.0
+		add_child(p)
+		amb_pl.append(p)
+	amb_thread = Thread.new()
+	amb_thread.start(_gen_audio)
+
+func _amb_finish() -> void:
+	if amb_thread == null or amb_thread.is_alive():
+		return
+	var r: Dictionary = amb_thread.wait_to_finish()
+	amb_thread = null
+	for k in ["gull", "horn", "car"]:
+		snd[k] = r[k]
+	var names := ["wind", "crowd", "sea"]
+	for i in range(3):
+		(amb_pl[i] as AudioStreamPlayer).stream = r[names[i]]
+		(amb_pl[i] as AudioStreamPlayer).play()
+	music_pl.stream = r["music"]
+	music_pl.play()
 
 # ---------------- ввод ----------------
 func _input(event: InputEvent) -> void:
@@ -2919,6 +3607,7 @@ func _process(d: float) -> void:
 		_stones_update(d)
 		_birds_update(d)
 		_fight_update(d)
+		_world_update(d)
 		_act_update()
 	mini.visible = state == "play"
 	mini.position = Vector2(_vs().x - MM_SIZE - 20, 84)
